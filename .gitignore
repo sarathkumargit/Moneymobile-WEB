@@ -1,0 +1,24 @@
+/node_modules
+/.next
+/out
+/build
+.DS_Store
+*.pem
+.env
+.env*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+next-env.d.ts
+.vercel
+*.tsbuildinfo
+
+# Firebase push credential (keep secret)
+firebase-service-account.json
+
+# Working junk (not part of the app)
+_to_delete/
+.backup-*/
+
+# Generated per-shop setup config (contains the shop secret)
+setup-kit/config.txt
