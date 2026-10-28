@@ -22,3 +22,9 @@ _to_delete/
 
 # Generated per-shop setup config (contains the shop secret)
 setup-kit/config.txt
+
+# Stray local backups / scratch (never in the repo)
+.perf-backup-*/
+.removed-*/
+.unfinished/
+.unfinished
