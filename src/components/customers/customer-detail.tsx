@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Phone, Mail, MapPin, CreditCard, FileText, HardDrive, ShieldAlert, Smartphone, ChevronDown, Send } from "lucide-react";
+import { ArrowLeft, Phone, Mail, MapPin, CreditCard, FileText, HardDrive, ShieldAlert, Smartphone, ChevronDown, Radar } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionProfile } from "@/lib/auth/auth";
 import { signedDocUrl } from "@/lib/shared/storage";
@@ -235,7 +235,7 @@ export async function CustomerDetail({ id, backHref }: { id: string; backHref: s
               <form action={sendTestPush}>
                 <input type="hidden" name="device_id" value={d.id} />
                 <input type="hidden" name="customer_id" value={customer.id} />
-                <Button type="submit" size="sm" variant="outline"><Send className="h-3.5 w-3.5" /> Test push</Button>
+                <Button type="submit" size="sm" variant="outline"><Radar className="h-3.5 w-3.5" /> Check if online</Button>
               </form>
             </DeviceCommandPanel>
             {connected && !managementKnown && (
