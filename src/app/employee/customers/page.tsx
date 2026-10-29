@@ -1,3 +1,4 @@
+import { formatSLDate } from "@/lib/srilanka-time";
 import { UserSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
@@ -50,7 +51,7 @@ export default async function EmployeeCustomersPage() {
                       <td className="p-4 font-medium"><Link href={`/employee/customers/${r.id}`} className="text-primary hover:underline">{r.full_name}</Link></td>
                       <td className="p-4 font-mono text-xs text-muted-foreground">{r.national_id ?? "—"}</td>
                       <td className="p-4 text-muted-foreground">{r.phone ?? "—"}</td>
-                      <td className="p-4 text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</td>
+                      <td className="p-4 text-muted-foreground">{formatSLDate(r.created_at)}</td>
                       <td className="p-4"><Badge variant={vBadge[r.verification]} className="capitalize">{r.verification}</Badge></td>
                     </tr>
                   ))}

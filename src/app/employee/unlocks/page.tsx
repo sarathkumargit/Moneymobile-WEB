@@ -1,3 +1,4 @@
+import { formatSL, formatSLTime } from "@/lib/srilanka-time";
 import { KeyRound } from "lucide-react";
 import { UnlockRequests } from "@/components/unlock-requests";
 import { createClient } from "@/lib/supabase/server";
@@ -18,7 +19,7 @@ export default async function EmployeeUnlocksPage() {
     <Card><CardContent className="p-0">
       {rows.length === 0 ? (<div className="flex flex-col items-center justify-center py-16 text-center"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted"><KeyRound className="h-6 w-6 text-muted-foreground" /></div><p className="mt-3 font-medium">No unlock keys yet</p></div>
       ) : (<div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left text-muted-foreground"><th className="p-4 font-medium">Device</th><th className="p-4 font-medium">Created</th><th className="p-4 font-medium">Expires</th><th className="p-4 font-medium">Status</th></tr></thead><tbody>
-        {rows.map((r) => (<tr key={r.id} className="border-b last:border-0"><td className="p-4 font-medium">{r.devices ? `${r.devices.brand ?? ""} ${r.devices.model ?? ""}` : "—"}<div className="font-mono text-xs text-muted-foreground">{r.devices?.imei1 ?? ""}</div></td><td className="p-4 text-muted-foreground">{new Date(r.created_at).toLocaleString()}</td><td className="p-4 text-muted-foreground">{new Date(r.expires_at).toLocaleTimeString()}</td><td className="p-4"><Badge variant={kBadge[r.status] ?? "neutral"} className="capitalize">{r.status}</Badge></td></tr>))}
+        {rows.map((r) => (<tr key={r.id} className="border-b last:border-0"><td className="p-4 font-medium">{r.devices ? `${r.devices.brand ?? ""} ${r.devices.model ?? ""}` : "—"}<div className="font-mono text-xs text-muted-foreground">{r.devices?.imei1 ?? ""}</div></td><td className="p-4 text-muted-foreground">{formatSL(r.created_at)}</td><td className="p-4 text-muted-foreground">{formatSLTime(r.expires_at)}</td><td className="p-4"><Badge variant={kBadge[r.status] ?? "neutral"} className="capitalize">{r.status}</Badge></td></tr>))}
       </tbody></table></div>)}
     </CardContent></Card>
   </>);

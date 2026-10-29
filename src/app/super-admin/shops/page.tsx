@@ -1,3 +1,4 @@
+import { formatSLDate } from "@/lib/srilanka-time";
 import { Store } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { NewShopForm } from "@/components/new-shop-form";
@@ -62,7 +63,7 @@ export default async function ShopsPage() {
                         {s.owner?.username && <div className="text-xs text-muted-foreground">@{s.owner.username}</div>}
                       </td>
                       <td className="p-4 text-muted-foreground">{s.phone ?? "—"}</td>
-                      <td className="p-4 text-muted-foreground">{new Date(s.created_at).toLocaleDateString()}</td>
+                      <td className="p-4 text-muted-foreground">{formatSLDate(s.created_at)}</td>
                       <td className="p-4">
                         <Badge variant={s.status === "active" ? "success" : "danger"} className="capitalize">{s.status}</Badge>
                       </td>

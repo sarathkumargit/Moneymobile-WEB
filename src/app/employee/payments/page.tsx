@@ -1,3 +1,4 @@
+import { formatSLDate } from "@/lib/srilanka-time";
 import { CreditCard } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { NewPaymentForm } from "@/components/new-payment-form";
@@ -27,7 +28,7 @@ export default async function EmployeePaymentsPage() {
     <Card><CardContent className="p-0">
       {rows.length === 0 ? (<div className="flex flex-col items-center justify-center py-16 text-center"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted"><CreditCard className="h-6 w-6 text-muted-foreground" /></div><p className="mt-3 font-medium">No payments yet</p><p className="text-sm text-muted-foreground">Record a payment for one of your customers.</p></div>
       ) : (<div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left text-muted-foreground"><th className="p-4 font-medium">Date</th><th className="p-4 font-medium">Customer</th><th className="p-4 font-medium">Phone (IMEI)</th><th className="p-4 font-medium">Method</th><th className="p-4 font-medium text-right">Amount</th><th className="p-4 font-medium">Status</th></tr></thead><tbody>
-        {rows.map((r) => (<tr key={r.id} className="border-b last:border-0"><td className="p-4 text-muted-foreground">{new Date(r.paid_at).toLocaleDateString()}</td><td className="p-4 font-medium">{r.customers?.full_name ?? "—"}</td><td className="p-4 text-xs text-muted-foreground">{phoneOf(r)}</td><td className="p-4 capitalize text-muted-foreground">{r.method.replace(/_/g, " ")}</td><td className="p-4 text-right font-semibold">{formatCurrency(Number(r.amount))}</td><td className="p-4"><Badge variant="success" className="capitalize">{r.verification}</Badge></td></tr>))}
+        {rows.map((r) => (<tr key={r.id} className="border-b last:border-0"><td className="p-4 text-muted-foreground">{formatSLDate(r.paid_at)}</td><td className="p-4 font-medium">{r.customers?.full_name ?? "—"}</td><td className="p-4 text-xs text-muted-foreground">{phoneOf(r)}</td><td className="p-4 capitalize text-muted-foreground">{r.method.replace(/_/g, " ")}</td><td className="p-4 text-right font-semibold">{formatCurrency(Number(r.amount))}</td><td className="p-4"><Badge variant="success" className="capitalize">{r.verification}</Badge></td></tr>))}
       </tbody></table></div>)}
       {rows.length >= PAGE_LIMIT && <p className="border-t p-3 text-center text-xs text-muted-foreground">Showing the latest {PAGE_LIMIT} payments.</p>}
     </CardContent></Card>

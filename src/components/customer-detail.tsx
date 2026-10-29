@@ -12,7 +12,7 @@ import { EnrollTokenButton } from "@/components/enroll-token-button";
 import { resolveSecurityEvent, sendTestPush } from "@/app/shop/device-management/actions";
 import { DeviceAdminButtons } from "@/components/device-admin-buttons";
 import { DueDateEditor } from "@/components/due-date-editor";
-import { formatSL, slToUtcIso } from "@/lib/srilanka-time";
+import { formatSL, formatSLDate, slToUtcIso } from "@/lib/srilanka-time";
 import { DeviceCommandPanel, type CommandRow } from "@/components/device-command-panel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -257,7 +257,7 @@ export async function CustomerDetail({ id, backHref }: { id: string; backHref: s
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="font-medium">{d.brand} {d.model} <span className="font-mono text-xs text-muted-foreground">{d.imei1 ?? ""}</span></p>
-                <p className="text-xs text-muted-foreground">{e ? (e.last_sync ? `Last sync: ${new Date(e.last_sync).toLocaleString()}` : e.status === "pending" ? "Enrollment token issued — waiting for the app to enroll" : "Enrolled, awaiting first sync") : "Not connected yet"}</p>
+                <p className="text-xs text-muted-foreground">{e ? (e.last_sync ? `Last sync: ${formatSL(e.last_sync)}` : e.status === "pending" ? "Enrollment token issued — waiting for the app to enroll" : "Enrolled, awaiting first sync") : "Not connected yet"}</p>
                 {e && connected && (() => {
                   const sim = simByEnr[e.id];
                   return (
@@ -272,8 +272,8 @@ export async function CustomerDetail({ id, backHref }: { id: string; backHref: s
               </div>
               {released ? <Badge variant="neutral">released</Badge>
                 : connected ? (online(e!.last_sync)
-                    ? <Badge variant="success" title={`Last check-in ${new Date(e!.last_sync!).toLocaleString()}`}>● Active</Badge>
-                    : <Badge variant={offlineVariant(e!.last_sync)} title={e!.last_sync ? `Last seen ${new Date(e!.last_sync).toLocaleString()}` : undefined}>Offline · {sinceLabel(e!.last_sync)}</Badge>)
+                    ? <Badge variant="success" title={`Last check-in ${formatSL(e!.last_sync)}`}>● Active</Badge>
+                    : <Badge variant={offlineVariant(e!.last_sync)} title={e!.last_sync ? `Last seen ${formatSL(e!.last_sync)}` : undefined}>Offline · {sinceLabel(e!.last_sync)}</Badge>)
                 : e ? <Badge variant="warning" className="capitalize">{e.status === "pending" ? "awaiting enrollment" : e.status}</Badge>
                 : <Badge variant="neutral">not connected</Badge>}
             </div>
@@ -307,7 +307,7 @@ export async function CustomerDetail({ id, backHref }: { id: string; backHref: s
           <div className="px-4 pb-4">
           {evts.map((ev) => (
             <div key={ev.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-2 first:border-0 text-sm">
-              <div><span className="font-medium capitalize">{(ev.event_type ?? "event").replace(/_/g, " ")}</span><span className="ml-2 text-xs text-muted-foreground">{ev.details ?? ""} · {new Date(ev.created_at).toLocaleString()}</span></div>
+              <div><span className="font-medium capitalize">{(ev.event_type ?? "event").replace(/_/g, " ")}</span><span className="ml-2 text-xs text-muted-foreground">{ev.details ?? ""} · {formatSL(ev.created_at)}</span></div>
               {ev.status === "approval_required" ? (
                 <div className="flex gap-2">
                   <form action={resolveSecurityEvent}><input type="hidden" name="event_id" value={ev.id} /><input type="hidden" name="customer_id" value={customer.id} /><input type="hidden" name="decision" value="approved" /><Button type="submit" size="sm" variant="outline">Approve &amp; unlock</Button></form>
@@ -398,7 +398,7 @@ export async function CustomerDetail({ id, backHref }: { id: string; backHref: s
       <Card><CardHeader><CardTitle className="flex items-center gap-2"><CreditCard className="h-4 w-4" /> Payment history</CardTitle></CardHeader><CardContent className="p-0">
         {pays.length === 0 ? <p className="p-6 text-sm text-muted-foreground">No payments recorded yet.</p> : (
         <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left text-muted-foreground"><th className="p-3 font-medium">Date</th><th className="p-3 font-medium">Method</th><th className="p-3 font-medium text-right">Amount</th><th className="p-3 font-medium">Status</th></tr></thead><tbody>
-          {pays.map((p) => (<tr key={p.id} className="border-b last:border-0"><td className="p-3 text-muted-foreground">{new Date(p.paid_at).toLocaleDateString()}</td><td className="p-3 capitalize text-muted-foreground">{p.method.replace(/_/g, " ")}</td><td className="p-3 text-right font-semibold">{formatCurrency(Number(p.amount))}</td><td className="p-3"><Badge variant="success" className="capitalize">{p.verification}</Badge></td></tr>))}
+          {pays.map((p) => (<tr key={p.id} className="border-b last:border-0"><td className="p-3 text-muted-foreground">{formatSLDate(p.paid_at)}</td><td className="p-3 capitalize text-muted-foreground">{p.method.replace(/_/g, " ")}</td><td className="p-3 text-right font-semibold">{formatCurrency(Number(p.amount))}</td><td className="p-3"><Badge variant="success" className="capitalize">{p.verification}</Badge></td></tr>))}
         </tbody></table></div>)}
       </CardContent></Card>
     </div>
@@ -422,7 +422,7 @@ function DeviceLocation({ loc }: { loc: { lat: number; lng: number; acc: number 
     <div className="mt-3 rounded-lg border p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
         <span className="flex items-center gap-1.5 font-medium"><MapPin className="h-3.5 w-3.5" /> Last known location</span>
-        <span className="text-muted-foreground">{at ? `Updated ${new Date(at).toLocaleString()}` : ""}{acc ? ` · ±${acc}m` : ""}</span>
+        <span className="text-muted-foreground">{at ? `Updated ${formatSL(at)}` : ""}{acc ? ` · ±${acc}m` : ""}</span>
       </div>
       <iframe title="Device location" src={src} className="h-56 w-full rounded-md border" loading="lazy" />
       <a href={link} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs text-primary hover:underline">Open in OpenStreetMap →</a>

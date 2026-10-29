@@ -1,4 +1,5 @@
 "use client";
+import { formatSLTime } from "@/lib/srilanka-time";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFormState, useFormStatus } from "react-dom";
@@ -41,14 +42,9 @@ function ReleaseBlocked({ owing }: { owing: number }) {
 }
 
 const label = (c: string) => (c === "LOCK_DEVICE" ? "Lock" : c === "UNLOCK_DEVICE" ? "Unlock" : c === "RELEASE_DEVICE" ? "Release" : c.replace(/_/g, " ").toLowerCase());
-// Times are formatted only in the browser: the server and browser use different locales
-// ("05:18:15 PM" vs "17:18:15"), which caused a hydration error when rendered on both.
-function Time({ t }: { t: string | null }) {
-  const [text, setText] = useState("");
-  useEffect(() => { setText(t ? new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : ""); }, [t]);
-  return <>{text}</>;
-}
-const time = (t: string | null) => <Time t={t} />;
+// Always Sri Lanka time (the shop's timezone), from a fixed +5:30 offset so the string is
+// identical on the server and in every browser — consistent, and no hydration mismatch.
+const time = (t: string | null) => formatSLTime(t);
 
 function StatusLine({ c }: { c: CommandRow }) {
   const base = "flex flex-wrap items-center gap-2 text-xs";

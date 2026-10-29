@@ -1,3 +1,4 @@
+import { formatSL } from "@/lib/srilanka-time";
 import { ShieldCheck, Lock, Unlock, Smartphone, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { NewEnrollmentForm } from "@/components/new-enrollment-form";
@@ -44,7 +45,7 @@ export default async function DeviceManagementPage() {
           <td className="p-3 font-medium">{e.customer?.full_name ?? "—"}</td>
           <td className="p-3">{e.model ?? "—"}<div className="font-mono text-xs text-muted-foreground">{e.imei1 ?? ""}</div></td>
           <td className="p-3 text-muted-foreground">{e.sim_operator ?? "—"}</td>
-          <td className="p-3 text-muted-foreground">{e.last_sync ? new Date(e.last_sync).toLocaleString() : "never"}</td>
+          <td className="p-3 text-muted-foreground">{e.last_sync ? formatSL(e.last_sync) : "never"}</td>
           <td className="p-3">
             {e.status === "enrolled"
               ? <Badge variant={online(e.last_sync) ? "success" : "neutral"}>{online(e.last_sync) ? "online" : "offline"}</Badge>
@@ -72,7 +73,7 @@ export default async function DeviceManagementPage() {
         {evts.length === 0 ? <p className="p-6 text-sm text-muted-foreground">No events reported.</p> : (
         <div className="overflow-x-auto"><table className="w-full text-sm"><tbody>
           {evts.map((ev) => (<tr key={ev.id} className="border-b last:border-0">
-            <td className="p-3"><div className="font-medium capitalize">{(ev.event_type ?? "event").replace(/_/g, " ")}</div><div className="text-xs text-muted-foreground">{ev.details ?? ""}</div><div className="text-xs text-muted-foreground">{new Date(ev.created_at).toLocaleString()}</div></td>
+            <td className="p-3"><div className="font-medium capitalize">{(ev.event_type ?? "event").replace(/_/g, " ")}</div><div className="text-xs text-muted-foreground">{ev.details ?? ""}</div><div className="text-xs text-muted-foreground">{formatSL(ev.created_at)}</div></td>
             <td className="p-3 text-right">
               {ev.status === "approval_required" ? (
                 <div className="flex justify-end gap-2">
@@ -89,7 +90,7 @@ export default async function DeviceManagementPage() {
       <Card><CardHeader><CardTitle>Recent commands</CardTitle></CardHeader><CardContent className="p-0">
         {cmds.length === 0 ? <p className="p-6 text-sm text-muted-foreground">No commands issued.</p> : (
         <div className="overflow-x-auto"><table className="w-full text-sm"><tbody>
-          {cmds.map((c) => (<tr key={c.id} className="border-b last:border-0"><td className="p-3 font-medium capitalize">{c.command.replace(/_/g, " ").toLowerCase()}</td><td className="p-3 text-muted-foreground">{new Date(c.created_at).toLocaleString()}</td><td className="p-3 text-right"><Badge variant={c.status === "acked" ? "success" : c.status === "failed" ? "danger" : "neutral"} className="capitalize">{c.status}</Badge></td></tr>))}
+          {cmds.map((c) => (<tr key={c.id} className="border-b last:border-0"><td className="p-3 font-medium capitalize">{c.command.replace(/_/g, " ").toLowerCase()}</td><td className="p-3 text-muted-foreground">{formatSL(c.created_at)}</td><td className="p-3 text-right"><Badge variant={c.status === "acked" ? "success" : c.status === "failed" ? "danger" : "neutral"} className="capitalize">{c.status}</Badge></td></tr>))}
         </tbody></table></div>)}
       </CardContent></Card>
     </div>

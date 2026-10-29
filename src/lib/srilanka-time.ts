@@ -39,3 +39,24 @@ export function formatSL(iso: string | null | undefined): string {
   const h12 = ((h + 11) % 12) + 1;
   return `${pad(sl.getUTCMonth() + 1)}/${pad(sl.getUTCDate())}/${sl.getUTCFullYear()}, ${h12}:${pad(sl.getUTCMinutes())} ${ap} (SL)`;
 }
+
+// A UTC instant → Sri Lanka date only, e.g. "11/26/2026".
+export function formatSLDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const t = new Date(iso);
+  if (isNaN(t.getTime())) return "";
+  const sl = new Date(t.getTime() + SL_OFFSET_MIN * 60000);
+  return `${pad(sl.getUTCMonth() + 1)}/${pad(sl.getUTCDate())}/${sl.getUTCFullYear()}`;
+}
+
+// A UTC instant → Sri Lanka time only, e.g. "5:00:21 PM".
+export function formatSLTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const t = new Date(iso);
+  if (isNaN(t.getTime())) return "";
+  const sl = new Date(t.getTime() + SL_OFFSET_MIN * 60000);
+  const h = sl.getUTCHours();
+  const ap = h < 12 ? "AM" : "PM";
+  const h12 = ((h + 11) % 12) + 1;
+  return `${h12}:${pad(sl.getUTCMinutes())}:${pad(sl.getUTCSeconds())} ${ap}`;
+}

@@ -1,3 +1,4 @@
+import { formatSL } from "@/lib/srilanka-time";
 import { KeyRound, Smartphone, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { resolveUnlockRequest } from "@/app/shop/unlocks/actions";
@@ -49,7 +50,7 @@ export async function UnlockRequests({ canAct }: { canAct: boolean }) {
                   <p className="text-xs text-muted-foreground">
                     {r.model ?? "Device"}{r.imei ? ` · IMEI ${r.imei}` : ""}
                   </p>
-                  <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground"><Clock className="h-3 w-3" />{new Date(r.created_at).toLocaleString()}{r.reason ? ` · “${r.reason}”` : ""}</p>
+                  <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground"><Clock className="h-3 w-3" />{formatSL(r.created_at)}{r.reason ? ` · “${r.reason}”` : ""}</p>
                 </div>
                 {r.status === "pending" && canAct ? (
                   <div className="flex gap-2">
