@@ -1,4 +1,4 @@
-import { resolveAgreementId } from "@/lib/device-api";
+import { resolveAgreementId } from "@/lib/devices/device-api";
 
 type Admin = ReturnType<typeof import("@/lib/supabase/admin").createAdminClient>;
 type Enr = { id: string; shop_id: string; device_id: string | null; customer_id?: string | null; agreement_id?: string | null };

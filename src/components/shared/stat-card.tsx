@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/shared/utils";
 import { Card, CardContent } from "@/components/ui/card";
 
 export function StatCard({

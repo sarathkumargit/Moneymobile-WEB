@@ -3,8 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/utils";
-import { getDashboardTotals } from "@/lib/dashboard-totals";
+import { formatCurrency } from "@/lib/shared/utils";
+import { getDashboardTotals } from "@/lib/billing/dashboard-totals";
 
 export const dynamic = "force-dynamic";
 

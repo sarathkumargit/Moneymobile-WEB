@@ -1,11 +1,11 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile } from "@/lib/auth/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { allocatePayment, type ScheduleRow } from "@/lib/schedule";
-import { evaluateOverdueLock } from "@/lib/overdue-lock";
-import { deviceSnapshot, missingSnapshotColumn, type DeviceSnapshot } from "@/lib/device-snapshot";
+import { allocatePayment, type ScheduleRow } from "@/lib/billing/schedule";
+import { evaluateOverdueLock } from "@/lib/billing/overdue-lock";
+import { deviceSnapshot, missingSnapshotColumn, type DeviceSnapshot } from "@/lib/devices/device-snapshot";
 export type ActionState = { error?: string; success?: string };
 export async function recordPayment(_p: ActionState, fd: FormData): Promise<ActionState> {
   const s = await getSessionProfile();

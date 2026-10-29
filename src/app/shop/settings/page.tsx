@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile } from "@/lib/auth/auth";
 import { ShopSettingsForm } from "@/components/shops/shop-settings-form";
 import { DeviceSetupCard } from "@/components/devices/device-setup-card";
 export const dynamic = "force-dynamic";

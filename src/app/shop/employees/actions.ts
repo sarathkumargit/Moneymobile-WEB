@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile } from "@/lib/auth/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { setFlash } from "@/lib/flash";
+import { setFlash } from "@/lib/shared/flash";
 
 export type ActionState = { error?: string; success?: string };
 

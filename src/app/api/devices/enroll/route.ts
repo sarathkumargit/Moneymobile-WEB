@@ -1,6 +1,6 @@
 export const runtime = "nodejs";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sha256, newToken, resolveAgreementId, buildAgreementStatus } from "@/lib/device-api";
+import { sha256, newToken, resolveAgreementId, buildAgreementStatus } from "@/lib/devices/device-api";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);

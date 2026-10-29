@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { CheckCircle2, AlertCircle, X } from "lucide-react";
-import type { Flash } from "@/lib/flash";
+import type { Flash } from "@/lib/shared/flash";
 
 // Shows a toast whenever a server action set a flash cookie, then clears it.
 export function FlashToaster({ flash }: { flash: Flash | null }) {

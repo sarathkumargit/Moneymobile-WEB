@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createAgreement, type ActionState } from "@/app/shop/installments/actions";
-import { calcInstallment } from "@/lib/installment";
-import { formatCurrency } from "@/lib/utils";
+import { calcInstallment } from "@/lib/billing/installment";
+import { formatCurrency } from "@/lib/shared/utils";
 
 const initial: ActionState = {};
 const DEFAULT_SOFTWARE_FEE = "3500";

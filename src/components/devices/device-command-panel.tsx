@@ -1,5 +1,5 @@
 "use client";
-import { formatSLTime } from "@/lib/srilanka-time";
+import { formatSLTime } from "@/lib/shared/srilanka-time";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFormState, useFormStatus } from "react-dom";

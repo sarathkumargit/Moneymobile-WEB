@@ -1,4 +1,4 @@
-import { formatSL } from "@/lib/srilanka-time";
+import { formatSL } from "@/lib/shared/srilanka-time";
 import { ShieldCheck, Lock, Unlock, Smartphone, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { NewEnrollmentForm } from "@/components/devices/new-enrollment-form";

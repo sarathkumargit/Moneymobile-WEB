@@ -1,10 +1,10 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile } from "@/lib/auth/auth";
 import { createClient } from "@/lib/supabase/server";
-import { deviceSnapshot, missingSnapshotColumn } from "@/lib/device-snapshot";
-import { calcInstallment, type InterestType } from "@/lib/installment";
-import { slToUtcIso, slDate } from "@/lib/srilanka-time";
+import { deviceSnapshot, missingSnapshotColumn } from "@/lib/devices/device-snapshot";
+import { calcInstallment, type InterestType } from "@/lib/billing/installment";
+import { slToUtcIso, slDate } from "@/lib/shared/srilanka-time";
 export type ActionState = { error?: string; success?: string };
 
 function addMonths(d: Date, n: number) { const x = new Date(d); x.setMonth(x.getMonth() + n); return x; }

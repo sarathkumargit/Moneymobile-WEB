@@ -1,7 +1,7 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import { updateScheduleDueDate } from "@/app/shop/installments/schedule-actions";
-import { toSLInput } from "@/lib/srilanka-time";
+import { toSLInput } from "@/lib/shared/srilanka-time";
 
 // Inline date+time editor for one installment's due moment. Times are Sri Lanka time (where the
 // shop operates), so staff always type and read the same wall-clock regardless of their own zone.

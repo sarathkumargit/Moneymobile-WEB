@@ -1,11 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile } from "@/lib/auth/auth";
 import { createClient } from "@/lib/supabase/server";
-import { setFlash } from "@/lib/flash";
+import { setFlash } from "@/lib/shared/flash";
 import { redirect } from "next/navigation";
-import { uploadDoc } from "@/lib/storage";
+import { uploadDoc } from "@/lib/shared/storage";
 
 export type ActionState = { error?: string; success?: string };
 

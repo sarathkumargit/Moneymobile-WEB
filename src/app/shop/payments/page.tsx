@@ -1,12 +1,12 @@
-import { formatSLDate } from "@/lib/srilanka-time";
+import { formatSLDate } from "@/lib/shared/srilanka-time";
 import { CreditCard } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { NewPaymentForm } from "@/components/billing/new-payment-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/utils";
-import { phoneLabelsForAgreements } from "@/lib/device-snapshot";
-import { deviceLabel, loadPayments } from "@/lib/device-snapshot";
+import { formatCurrency } from "@/lib/shared/utils";
+import { phoneLabelsForAgreements } from "@/lib/devices/device-snapshot";
+import { deviceLabel, loadPayments } from "@/lib/devices/device-snapshot";
 export const dynamic = "force-dynamic";
 const PAGE_LIMIT = 200; // newest first; keeps the page fast as payment history grows
 type Row = { id: string; agreement_id: string | null; device_model?: string | null; device_imei?: string | null; amount: number; method: string; reference: string | null; paid_at: string; verification: string; customers: { full_name: string } | null };

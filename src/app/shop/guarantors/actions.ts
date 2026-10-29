@@ -1,6 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile } from "@/lib/auth/auth";
 import { createClient } from "@/lib/supabase/server";
 export type ActionState = { error?: string; success?: string };
 export async function createGuarantor(_p: ActionState, fd: FormData): Promise<ActionState> {

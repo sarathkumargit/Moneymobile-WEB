@@ -1,6 +1,6 @@
 export const runtime = "nodejs";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sha256, resolveAgreementId } from "@/lib/device-api";
+import { sha256, resolveAgreementId } from "@/lib/devices/device-api";
 
 // Phone → shop: the customer tapped "Request unlock". We record a request (with device +
 // customer details) that staff see on the Unlock Requests page. Deduped: if a pending request

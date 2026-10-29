@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import type { Role } from "@/lib/nav";
+import type { Role } from "@/lib/shared/nav";
 
 export type Profile = {
   id: string;

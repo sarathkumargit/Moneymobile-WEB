@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Phone, Mail, MapPin, CreditCard, FileText, HardDrive, ShieldAlert, Smartphone, ChevronDown, Send } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { getSessionProfile } from "@/lib/auth";
-import { signedDocUrl } from "@/lib/storage";
+import { getSessionProfile } from "@/lib/auth/auth";
+import { signedDocUrl } from "@/lib/shared/storage";
 import { CustomerManage } from "@/components/customers/customer-manage";
 import { AgreementCalculatorForm } from "@/components/billing/agreement-calculator-form";
 import { NewPaymentForm } from "@/components/billing/new-payment-form";
@@ -12,13 +12,13 @@ import { EnrollTokenButton } from "@/components/devices/enroll-token-button";
 import { resolveSecurityEvent, sendTestPush } from "@/app/shop/device-management/actions";
 import { DeviceAdminButtons } from "@/components/devices/device-admin-buttons";
 import { DueDateEditor } from "@/components/billing/due-date-editor";
-import { formatSL, formatSLDate, slToUtcIso } from "@/lib/srilanka-time";
+import { formatSL, formatSLDate, slToUtcIso } from "@/lib/shared/srilanka-time";
 import { DeviceCommandPanel, type CommandRow } from "@/components/devices/device-command-panel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/utils";
-import { rowDisplayStatus } from "@/lib/schedule";
+import { formatCurrency } from "@/lib/shared/utils";
+import { rowDisplayStatus } from "@/lib/billing/schedule";
 
 const sBadge: Record<string, "success" | "warning" | "danger" | "neutral"> = { active: "success", completed: "neutral", defaulted: "danger", released: "neutral", cancelled: "neutral", draft: "warning" };
 // The app checks in every ~60s while its service runs, so 5 min without a sync means it is not reachable right now.

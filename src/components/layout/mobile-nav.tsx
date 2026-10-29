@@ -4,9 +4,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut, Menu, X, Smartphone } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { navByRole, roleMeta, type Role } from "@/lib/nav";
-import { signOut } from "@/lib/auth-actions";
+import { cn } from "@/lib/shared/utils";
+import { navByRole, roleMeta, type Role } from "@/lib/shared/nav";
+import { signOut } from "@/lib/auth/auth-actions";
 
 /**
  * Mobile navigation drawer. The desktop <Sidebar> is hidden below md, so on a phone this

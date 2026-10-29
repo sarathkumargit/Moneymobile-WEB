@@ -1,6 +1,6 @@
 export const runtime = "nodejs";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sha256, newToken, resolveAgreementId, buildAgreementStatus } from "@/lib/device-api";
+import { sha256, newToken, resolveAgreementId, buildAgreementStatus } from "@/lib/devices/device-api";
 
 // Token-free enrollment used by the shop's setup file. The phone authenticates with the
 // shop's own enroll_secret (baked into that shop's setup file) and identifies itself by IMEI.

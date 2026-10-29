@@ -3,9 +3,9 @@ export const dynamic = "force-dynamic";
 import { createHash } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile } from "@/lib/auth/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { phoneServerOrigin } from "@/lib/server-address";
+import { phoneServerOrigin } from "@/lib/devices/server-address";
 
 // Shop setup details for the Install App page (browser USB setup + QR code). Signed-in shop
 // admins/employees only — it contains the shop's setup secret.

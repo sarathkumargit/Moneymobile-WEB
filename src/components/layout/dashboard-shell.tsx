@@ -1,9 +1,9 @@
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { FlashToaster } from "@/components/layout/flash-toaster";
-import { readFlash } from "@/lib/flash";
-import type { Role } from "@/lib/nav";
-import { roleMeta } from "@/lib/nav";
+import { readFlash } from "@/lib/shared/flash";
+import type { Role } from "@/lib/shared/nav";
+import { roleMeta } from "@/lib/shared/nav";
 
 export function DashboardShell({
   role, userName, children,

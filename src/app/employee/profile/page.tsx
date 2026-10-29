@@ -1,4 +1,4 @@
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile } from "@/lib/auth/auth";
 import { ChangePasswordForm } from "@/components/account/change-password-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 export const dynamic = "force-dynamic";

@@ -1,14 +1,14 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile } from "@/lib/auth/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { deviceSnapshot } from "@/lib/device-snapshot";
-import { setFlash } from "@/lib/flash";
-import { sha256, newToken, resolveAgreementId } from "@/lib/device-api";
-import { sendFcmCommand } from "@/lib/fcm";
+import { deviceSnapshot } from "@/lib/devices/device-snapshot";
+import { setFlash } from "@/lib/shared/flash";
+import { sha256, newToken, resolveAgreementId } from "@/lib/devices/device-api";
+import { sendFcmCommand } from "@/lib/devices/fcm";
 import { randomUUID } from "crypto";
-import { queueCommand, getOrCreateEnrollment, type EnrRef } from "@/lib/device-commands";
+import { queueCommand, getOrCreateEnrollment, type EnrRef } from "@/lib/devices/device-commands";
 export type ActionState = { error?: string; success?: string; at?: number };
 
 const canOperate = (role: string) => role === "shop_admin" || role === "employee";

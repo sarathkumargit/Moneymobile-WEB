@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { getSessionProfile, dashboardPath } from "@/lib/auth";
+import { getSessionProfile, dashboardPath } from "@/lib/auth/auth";
 
 export default async function Layout({ children }: { children: React.ReactNode }) {
   const session = await getSessionProfile();

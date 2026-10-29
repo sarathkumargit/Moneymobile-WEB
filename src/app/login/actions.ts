@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { dashboardPath } from "@/lib/auth";
+import { dashboardPath } from "@/lib/auth/auth";
 
 export async function login(formData: FormData) {
   const email = String(formData.get("email") || "").trim();

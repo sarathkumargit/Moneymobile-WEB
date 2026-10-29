@@ -2,10 +2,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { promises as fs } from "fs";
 import path from "path";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile } from "@/lib/auth/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { buildZip, type ZipEntry } from "@/lib/zip";
-import { phoneServerOrigin } from "@/lib/server-address";
+import { buildZip, type ZipEntry } from "@/lib/shared/zip";
+import { phoneServerOrigin } from "@/lib/devices/server-address";
 
 // Downloads the phone setup kit for the signed-in user's shop, with config.txt already filled
 // in (shop id + secret, and the server address when the site is opened by its network address).

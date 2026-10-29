@@ -1,4 +1,4 @@
-import { formatSLDate } from "@/lib/srilanka-time";
+import { formatSLDate } from "@/lib/shared/srilanka-time";
 import { Store } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { NewShopForm } from "@/components/shops/new-shop-form";

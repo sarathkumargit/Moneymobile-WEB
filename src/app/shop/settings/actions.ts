@@ -1,6 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile } from "@/lib/auth/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 export type ActionState = { error?: string; success?: string };
 export async function updateShop(_p: ActionState, fd: FormData): Promise<ActionState> {

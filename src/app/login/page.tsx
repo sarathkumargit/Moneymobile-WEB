@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { login } from "./actions";
-import { getSessionProfile, dashboardPath } from "@/lib/auth";
+import { getSessionProfile, dashboardPath } from "@/lib/auth/auth";
 
 export default async function LoginPage({
   searchParams,

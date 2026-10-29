@@ -1,4 +1,4 @@
-import { formatSL } from "@/lib/srilanka-time";
+import { formatSL } from "@/lib/shared/srilanka-time";
 import { KeyRound, Smartphone, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { resolveUnlockRequest } from "@/app/shop/unlocks/actions";

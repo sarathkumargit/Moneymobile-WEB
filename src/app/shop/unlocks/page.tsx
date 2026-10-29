@@ -1,4 +1,4 @@
-import { formatSL, formatSLTime } from "@/lib/srilanka-time";
+import { formatSL, formatSLTime } from "@/lib/shared/srilanka-time";
 import { KeyRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { NewUnlockForm } from "@/components/unlocks/new-unlock-form";

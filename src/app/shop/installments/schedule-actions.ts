@@ -1,11 +1,11 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile } from "@/lib/auth/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { evaluateOverdueLock } from "@/lib/overdue-lock";
-import { setFlash } from "@/lib/flash";
-import { slToUtcIso, formatSL } from "@/lib/srilanka-time";
+import { evaluateOverdueLock } from "@/lib/billing/overdue-lock";
+import { setFlash } from "@/lib/shared/flash";
+import { slToUtcIso, formatSL } from "@/lib/shared/srilanka-time";
 
 // Edit one installment's due date. Shop admins only. After the change the overdue lock is
 // re-evaluated: moving a date into the future can lift an overdue lock, moving it into the past

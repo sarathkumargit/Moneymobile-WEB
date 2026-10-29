@@ -1,8 +1,8 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import { getSessionProfile } from "@/lib/auth";
-import { sha256, newToken, resolveAgreementId } from "@/lib/device-api";
-import { sendFcmCommand } from "@/lib/fcm";
+import { getSessionProfile } from "@/lib/auth/auth";
+import { sha256, newToken, resolveAgreementId } from "@/lib/devices/device-api";
+import { sendFcmCommand } from "@/lib/devices/fcm";
 
 // Shared by the device-management actions and the unlock-code action (moved here unchanged so
 // both queue Lock/Unlock exactly the same way). Not a "use server" file on purpose: these helpers

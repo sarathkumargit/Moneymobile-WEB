@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut, Smartphone } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { navByRole, roleMeta, type Role } from "@/lib/nav";
-import { signOut } from "@/lib/auth-actions";
+import { cn } from "@/lib/shared/utils";
+import { navByRole, roleMeta, type Role } from "@/lib/shared/nav";
+import { signOut } from "@/lib/auth/auth-actions";
 
 export function Sidebar({ role, userName }: { role: Role; userName: string }) {
   const pathname = usePathname();

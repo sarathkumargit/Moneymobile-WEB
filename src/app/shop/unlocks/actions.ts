@@ -1,12 +1,12 @@
 "use server";
 import { createHash } from "crypto";
 import { revalidatePath } from "next/cache";
-import { getSessionProfile } from "@/lib/auth";
+import { getSessionProfile } from "@/lib/auth/auth";
 import { createClient } from "@/lib/supabase/server";
-import { resolveAgreementId } from "@/lib/device-api";
+import { resolveAgreementId } from "@/lib/devices/device-api";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { queueCommand, type EnrRef } from "@/lib/device-commands";
-import { offlineUnlockCode, supportsOfflineCode, OFFLINE_VALID_MINUTES, OFFLINE_MIN_APP_VERSION } from "@/lib/offline-unlock";
+import { queueCommand, type EnrRef } from "@/lib/devices/device-commands";
+import { offlineUnlockCode, supportsOfflineCode, OFFLINE_VALID_MINUTES, OFFLINE_MIN_APP_VERSION } from "@/lib/devices/offline-unlock";
 export type ActionState = { error?: string; success?: string; code?: string; expiresAt?: number; note?: string };
 
 const canOperate = (role: string) => role === "shop_admin" || role === "employee";

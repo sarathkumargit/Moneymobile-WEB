@@ -2,7 +2,7 @@ import { Smartphone } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { NewModelForm } from "@/components/devices/new-model-form";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency } from "@/lib/shared/utils";
 export const dynamic = "force-dynamic";
 type Row = { id: string; brand: string; model_name: string; variant: string | null; ram: string | null; storage: string | null; retail_price: number | null; stock_qty: number | null };
 export default async function ModelsPage() {

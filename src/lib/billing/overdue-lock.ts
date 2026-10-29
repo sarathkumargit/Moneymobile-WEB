@@ -1,5 +1,5 @@
 import "server-only";
-import { countOverdue } from "@/lib/schedule";
+import { countOverdue } from "@/lib/billing/schedule";
 
 type Admin = ReturnType<typeof import("@/lib/supabase/admin").createAdminClient>;
 

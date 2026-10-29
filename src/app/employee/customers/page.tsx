@@ -1,4 +1,4 @@
-import { formatSLDate } from "@/lib/srilanka-time";
+import { formatSLDate } from "@/lib/shared/srilanka-time";
 import { UserSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
