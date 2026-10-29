@@ -1,6 +1,6 @@
 export const runtime = "nodejs";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sha256 } from "@/lib/device-api";
+import { sha256, resolveAgreementId } from "@/lib/device-api";
 import { raiseSimAlert } from "@/lib/sim-alert";
 
 export async function POST(req: Request) {
@@ -19,10 +19,17 @@ export async function POST(req: Request) {
   // while the phone was offline)? Then this old alert must not lock it again.
   let unlockedSince = false;
   if (isSim && detectedAtMs !== null) {
-    const { data: later } = await admin.from("device_commands").select("id")
-      .eq("enrollment_id", enr.id).in("command", ["UNLOCK_DEVICE", "RELEASE_DEVICE"])
-      .gt("created_at", new Date(detectedAtMs).toISOString()).limit(1).maybeSingle();
-    unlockedSince = !!later;
+    const since = new Date(detectedAtMs).toISOString();
+    const [{ data: laterCmd }, { data: laterKey }] = await Promise.all([
+      admin.from("device_commands").select("id")
+        .eq("enrollment_id", enr.id).in("command", ["UNLOCK_DEVICE", "RELEASE_DEVICE"])
+        .gt("created_at", since).limit(1).maybeSingle(),
+      // An offline unlock code issued after the SIM was pulled is also staff deciding to unlock,
+      // so a late SIM alert must not re-lock the phone. (Codes no longer queue an UNLOCK command.)
+      admin.from("temporary_unlock_keys").select("id")
+        .eq("device_id", enr.device_id).gt("created_at", since).limit(1).maybeSingle(),
+    ]);
+    unlockedSince = !!laterCmd || !!laterKey;
   }
   if (isSim && !unlockedSince) {
     // SIM removed/changed: one open alert per phone + locked server-side until staff decide.
@@ -36,8 +43,15 @@ export async function POST(req: Request) {
   } else {
     await admin.from("device_security_events").insert({
       shop_id: enr.shop_id, enrollment_id: enr.id, device_id: enr.device_id,
-      event_type: type, details: b.details ?? null, status: "new",
+      event_type: type, details: b.details ?? null, status: type === "OFFLINE_UNLOCK_CODE" ? "resolved" : "new",
     });
+    // The customer unlocked the phone with a shop-issued offline code. Clear the restriction so the
+    // next heartbeat's reconcile keeps it unlocked instead of re-locking. Generating the code no
+    // longer unlocks remotely, so THIS is the point the server learns the phone is now unlocked.
+    if (type === "OFFLINE_UNLOCK_CODE") {
+      const agreementId = enr.agreement_id ?? await resolveAgreementId(admin, enr);
+      if (agreementId) await admin.from("installment_agreements").update({ restriction: "active", restriction_reason: null }).eq("id", agreementId);
+    }
   }
   return Response.json({ success: true, data: null, message: "recorded" });
 }

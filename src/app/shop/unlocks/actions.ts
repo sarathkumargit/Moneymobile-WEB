@@ -61,17 +61,26 @@ export async function generateUnlockKey(_p: ActionState, fd: FormData): Promise<
     shop_id: s.profile.shop_id, device_id, agreement_id: agreement_id ?? enr.agreement_id ?? null,
     key_hash: createHash("sha256").update(code).digest("hex"), status: "unused", expires_at, created_by: s.user.id,
   });
-  // Same as pressing Unlock: clears the restriction + queues UNLOCK for when the phone is online.
-  const queued = await queueCommand(supabase, s, enr as EnrRef, "UNLOCK_DEVICE", device_id);
+  // The offline code is a phone-side unlock: the customer types it ON the locked phone, which
+  // unlocks itself and then reports OFFLINE_UNLOCK_CODE so the server clears the restriction
+  // (see api/devices/security-event). Generating the code must NOT remotely unlock the phone,
+  // or an online phone unlocks the instant staff press this button, before any code is typed.
+  const old = !supportsOfflineCode((enr as { app_version?: string | null }).app_version);
+  let queuedErr: string | undefined;
+  if (old) {
+    // A pre-offline-code app has no code box, so the code is useless to it — the only way this
+    // button can help such a phone is a remote Unlock when it is next online. New apps skip this.
+    const queued = await queueCommand(supabase, s, enr as EnrRef, "UNLOCK_DEVICE", device_id);
+    queuedErr = queued.error;
+  }
   await supabase.from("audit_logs").insert({ shop_id: s.profile.shop_id, actor_id: s.user.id, action: "generate_unlock_key", entity: "temporary_unlock_keys", entity_id: device_id, details: { expires_at, offline: true } });
   revalidatePath("/shop/unlocks");
   if (enr.customer_id) { revalidatePath(`/shop/customers/${enr.customer_id}`); revalidatePath(`/employee/customers/${enr.customer_id}`); }
 
-  const old = !supportsOfflineCode((enr as { app_version?: string | null }).app_version);
   const note = old
     ? ` ⚠ This phone runs app v${(enr as { app_version?: string | null }).app_version ?? "?"} — the code box needs v${OFFLINE_MIN_APP_VERSION} or newer. Until it's updated, the phone unlocks only when it goes online.`
     : "";
-  if (queued.error) return { error: `Code ${code} created, but: ${queued.error}` };
+  if (queuedErr) return { error: `Code ${code} created, but: ${queuedErr}` };
   return {
     code, expiresAt: Date.now() + OFFLINE_VALID_MINUTES * 60 * 1000, note: note.trim() || undefined,
     success: `Unlock code: ${code} — tell the customer to tap "Enter unlock code" on the locked phone. Works without internet for ${OFFLINE_VALID_MINUTES} minutes.${note}`,
