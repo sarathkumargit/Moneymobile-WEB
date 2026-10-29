@@ -1,7 +1,7 @@
 import { Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { NewEmployeeForm } from "@/components/new-employee-form";
-import { EmployeeRow } from "@/components/employee-row";
+import { NewEmployeeForm } from "@/components/employees/new-employee-form";
+import { EmployeeRow } from "@/components/employees/employee-row";
 import { Card, CardContent } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";

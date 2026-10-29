@@ -1,6 +1,6 @@
 import { formatSL, formatSLTime } from "@/lib/srilanka-time";
 import { KeyRound } from "lucide-react";
-import { UnlockRequests } from "@/components/unlock-requests";
+import { UnlockRequests } from "@/components/unlocks/unlock-requests";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

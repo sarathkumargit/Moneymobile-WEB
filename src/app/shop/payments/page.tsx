@@ -1,7 +1,7 @@
 import { formatSLDate } from "@/lib/srilanka-time";
 import { CreditCard } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { NewPaymentForm } from "@/components/new-payment-form";
+import { NewPaymentForm } from "@/components/billing/new-payment-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";

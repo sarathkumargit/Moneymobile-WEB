@@ -2,7 +2,7 @@ import { formatSLDate } from "@/lib/srilanka-time";
 import { UserSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { NewCustomerForm } from "@/components/new-customer-form";
+import { NewCustomerForm } from "@/components/customers/new-customer-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 

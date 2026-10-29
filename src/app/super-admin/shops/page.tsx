@@ -1,7 +1,7 @@
 import { formatSLDate } from "@/lib/srilanka-time";
 import { Store } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { NewShopForm } from "@/components/new-shop-form";
+import { NewShopForm } from "@/components/shops/new-shop-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 

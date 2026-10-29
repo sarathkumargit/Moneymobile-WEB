@@ -1,8 +1,8 @@
 import { formatSL, formatSLTime } from "@/lib/srilanka-time";
 import { KeyRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { NewUnlockForm } from "@/components/new-unlock-form";
-import { UnlockRequests } from "@/components/unlock-requests";
+import { NewUnlockForm } from "@/components/unlocks/new-unlock-form";
+import { UnlockRequests } from "@/components/unlocks/unlock-requests";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 export const dynamic = "force-dynamic";

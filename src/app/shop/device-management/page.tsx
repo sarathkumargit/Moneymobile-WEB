@@ -1,7 +1,7 @@
 import { formatSL } from "@/lib/srilanka-time";
 import { ShieldCheck, Lock, Unlock, Smartphone, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { NewEnrollmentForm } from "@/components/new-enrollment-form";
+import { NewEnrollmentForm } from "@/components/devices/new-enrollment-form";
 import { issueCommand, resolveSecurityEvent, resetDeviceRecord } from "@/app/shop/device-management/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

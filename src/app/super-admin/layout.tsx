@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { DashboardShell } from "@/components/dashboard-shell";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getSessionProfile, dashboardPath } from "@/lib/auth";
 
 export default async function Layout({ children }: { children: React.ReactNode }) {

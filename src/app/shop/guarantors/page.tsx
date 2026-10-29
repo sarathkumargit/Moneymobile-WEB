@@ -1,6 +1,6 @@
 import { ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { NewGuarantorForm } from "@/components/new-guarantor-form";
+import { NewGuarantorForm } from "@/components/customers/new-guarantor-form";
 import { Card, CardContent } from "@/components/ui/card";
 export const dynamic = "force-dynamic";
 type Row = { id: string; full_name: string; national_id: string | null; phone: string | null; relationship: string | null };

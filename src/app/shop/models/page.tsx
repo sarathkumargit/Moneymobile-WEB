@@ -1,6 +1,6 @@
 import { Smartphone } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { NewModelForm } from "@/components/new-model-form";
+import { NewModelForm } from "@/components/devices/new-model-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
 export const dynamic = "force-dynamic";

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Store, FileText, Wallet, AlertTriangle, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { StatCard } from "@/components/stat-card";
+import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

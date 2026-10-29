@@ -1,6 +1,6 @@
 import { FileText } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { AgreementCalculatorForm } from "@/components/agreement-calculator-form";
+import { AgreementCalculatorForm } from "@/components/billing/agreement-calculator-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";

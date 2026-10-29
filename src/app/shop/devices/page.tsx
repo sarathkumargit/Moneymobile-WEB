@@ -1,6 +1,6 @@
 import { HardDrive } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { NewDeviceForm } from "@/components/new-device-form";
+import { NewDeviceForm } from "@/components/devices/new-device-form";
 import { assignDevice } from "@/app/shop/devices/actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

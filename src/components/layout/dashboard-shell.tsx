@@ -1,6 +1,6 @@
-import { Sidebar } from "@/components/sidebar";
-import { MobileNav } from "@/components/mobile-nav";
-import { FlashToaster } from "@/components/flash-toaster";
+import { Sidebar } from "@/components/layout/sidebar";
+import { MobileNav } from "@/components/layout/mobile-nav";
+import { FlashToaster } from "@/components/layout/flash-toaster";
 import { readFlash } from "@/lib/flash";
 import type { Role } from "@/lib/nav";
 import { roleMeta } from "@/lib/nav";

@@ -1,6 +1,6 @@
 import { Users, HardDrive, FileText, Wallet, TrendingUp, CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { StatCard } from "@/components/stat-card";
+import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
 import { getDashboardTotals } from "@/lib/dashboard-totals";
