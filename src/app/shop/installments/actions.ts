@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { getSessionProfile } from "@/lib/auth/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { deviceSnapshot, missingSnapshotColumn } from "@/lib/devices/device-snapshot";
 import { calcInstallment, type InterestType } from "@/lib/billing/installment";
 import { getLicense, LICENSE_MSG } from "@/lib/admin/license";
@@ -75,7 +76,17 @@ export async function createAgreement(_p: ActionState, fd: FormData): Promise<Ac
     await supabase.from("installment_schedules").insert(schedules.map(({ due_at, ...rest }) => rest));
   }
 
-  if (device_id) await supabase.from("devices").update({ status: "under_installment", customer_id }).eq("id", device_id);
+  // Link the phone to the customer. Done with the service client (after checking the phone belongs to
+  // this shop) so a role/RLS restriction can never leave the agreement saying "phone X" while the phone
+  // itself is not tied to the customer — that made the customer page show "no device".
+  if (device_id) {
+    const admin = createAdminClient();
+    const { data: dev } = await admin.from("devices").select("id,shop_id").eq("id", device_id).maybeSingle();
+    if (dev && dev.shop_id === s.profile.shop_id) {
+      const { error: linkErr } = await admin.from("devices").update({ status: "under_installment", customer_id }).eq("id", device_id);
+      if (linkErr) return { error: `Agreement created, but linking the phone failed: ${linkErr.message}` };
+    }
+  }
   await supabase.from("audit_logs").insert({ shop_id: s.profile.shop_id, actor_id: s.user.id, action: "create_agreement", entity: "installment_agreements", entity_id: agr.id, details: { selling, months, monthly: calc.monthly, totalRepayment: calc.totalRepayment } });
 
   revalidatePath("/shop/installments"); revalidatePath("/shop"); revalidatePath("/shop/payments"); revalidatePath("/employee/installments");

@@ -98,6 +98,14 @@ export async function CustomerDetail({ id, backHref }: { id: string; backHref: s
   type Guar = { id: string; full_name: string; national_id: string | null; phone: string | null; email: string | null; address: string | null; relationship: string | null; nic_doc_url: string | null; nic_doc_back_url: string | null };
   const guars = (guarantors ?? []) as Guar[];
   const devs = (custDevices ?? []) as DevRow[];
+  // A phone named on one of this customer's agreements always counts as theirs, even if the phone row
+  // itself was never tied to the customer (older agreements, or a link that failed).
+  const haveIds = new Set(devs.map((d) => d.id));
+  const missingIds = Array.from(new Set((agreements ?? []).map((a) => (a as { device_id: string | null }).device_id).filter((x): x is string => !!x && !haveIds.has(x))));
+  if (missingIds.length) {
+    const { data: extra } = await supabase.from("devices").select("id,brand,model,imei1,status").in("id", missingIds);
+    devs.push(...((extra ?? []) as DevRow[]));
+  }
   const agrIds = (agreements ?? []).map((a) => (a as { id: string }).id);
   // Photos, enrollments and the installment schedule all depend only on the first batch, so they
   // load together in one round-trip instead of three sequential ones.
