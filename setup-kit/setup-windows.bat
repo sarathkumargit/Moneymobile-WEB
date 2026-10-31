@@ -84,6 +84,14 @@ if !errorlevel! equ 0 (
     )
     echo    DONE - !BRAND! !MODEL! updated.
     echo    Customer, registration and lock status are unchanged.
+    echo.
+    echo    Phone still shows Pending, or you deleted it on the website?
+    choice /C RN /T 10 /D N /M "   Press R to register it again (N or wait = skip)"
+    if !errorlevel! equ 1 (
+      "%ADB%" shell am start -n com.moneymobile.installment/.ui.EnrollmentActivity --es action "REGISTER_DEVICE" --es shop_id "!SHOP_ID!" --es enroll_secret "!SHOP_SECRET!" --es server_url "!URL!" >nul 2>&1
+      echo    Registration sent. The phone appears in Devices on the website in about a minute.
+      echo    Then assign it to the customer again.
+    )
   ) else (
     findstr /I /C:"DOWNGRADE" "%TEMP%\mm_upd.txt" >nul
     if !errorlevel! equ 0 ( echo    Already up to date - the phone has this version or newer. ) else ( echo    [ERROR] Update failed - see the message above. )

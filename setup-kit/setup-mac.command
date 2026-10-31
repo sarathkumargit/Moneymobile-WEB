@@ -84,6 +84,17 @@ if "$ADB" shell "dumpsys device_policy | grep -A3 'Device Owner'" 2>/dev/null | 
     NEWV=$("$ADB" shell dumpsys package com.moneymobile.installment 2>/dev/null | tr -d '\r' | grep -m1 versionName | sed 's/.*=//')
     echo "   DONE — $BRAND $MODEL updated to v${NEWV:-new}."
     echo "   Customer, registration and lock status are unchanged."
+    echo ""
+    echo "   Phone still shows Pending, or you deleted it on the website?"
+    read -t 10 -n 1 -s -r -p "   Press R within 10 seconds to register it again (or wait to skip): " REREG || true
+    echo ""
+    if [ "$REREG" = "r" ] || [ "$REREG" = "R" ]; then
+      "$ADB" shell am start -n com.moneymobile.installment/.ui.EnrollmentActivity \
+        --es action "REGISTER_DEVICE" --es shop_id "$SHOP_ID" --es enroll_secret "$SHOP_SECRET" \
+        ${URL:+--es server_url "$URL"} >/dev/null 2>&1 || true
+      echo "   Registration sent. The phone appears in Devices on the website in about a minute"
+      echo "   (it must have internet). Then assign it to the customer again."
+    fi
   elif echo "$OUT" | grep -qi "DOWNGRADE"; then
     echo "   Already up to date — the phone has this version or newer."
   else
