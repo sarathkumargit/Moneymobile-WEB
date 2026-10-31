@@ -4,6 +4,7 @@ import { getSessionProfile } from "@/lib/auth/auth";
 import { createClient } from "@/lib/supabase/server";
 import { deviceSnapshot, missingSnapshotColumn } from "@/lib/devices/device-snapshot";
 import { calcInstallment, type InterestType } from "@/lib/billing/installment";
+import { getLicense, LICENSE_MSG } from "@/lib/admin/license";
 import { slToUtcIso, slDate } from "@/lib/shared/srilanka-time";
 export type ActionState = { error?: string; success?: string };
 
@@ -30,6 +31,9 @@ export async function createAgreement(_p: ActionState, fd: FormData): Promise<Ac
   // Authoritative server-side calculation (never trust the client numbers)
   const calc = calcInstallment({ selling, deposit, ratePct: rate, months, interestType: itype, charges });
 
+  const lic = await getLicense(s.profile.shop_id);
+  if (lic.limit !== null && lic.used >= lic.limit) return { error: LICENSE_MSG };
+
   const supabase = createClient();
   const device_id = String(fd.get("device_id") || "").trim() || null;
   // The form gives a Sri Lanka wall-clock value ("2026-11-26T17:00"); convert to the UTC instant.
@@ -53,6 +57,7 @@ export async function createAgreement(_p: ActionState, fd: FormData): Promise<Ac
   const snap = await deviceSnapshot(supabase, device_id);
   let { data: agr, error } = await supabase.from("installment_agreements").insert({ ...agreementRow, ...snap }).select("id").single();
   if (missingSnapshotColumn(error)) ({ data: agr, error } = await supabase.from("installment_agreements").insert(agreementRow).select("id").single()); // migration 0016 not run yet
+  if (error?.message?.includes("LICENSE_LIMIT")) return { error: LICENSE_MSG };
   if (error || !agr) return { error: error?.message || "Could not create agreement." };
 
   // Generate the payment schedule (last installment absorbs rounding). due_at keeps the exact

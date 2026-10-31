@@ -7,6 +7,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 // works out what to do itself — a new / factory-reset phone gets the full setup, a phone that's
 // already set up just gets the newer app (customer + lock status unchanged).
 // The kit is generated for the signed-in user's shop by /api/setup-kit/[os].
+// "1.6.0" >= "1.6.0"? Compares dotted numbers; anything unreadable counts as older.
+function atLeast(v: string | null, min: string): boolean {
+  if (!v) return false;
+  const a = v.split(".").map(Number), b = min.split(".").map(Number);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const x = a[i] || 0, y = b[i] || 0;
+    if (Number.isNaN(x)) return false;
+    if (x !== y) return x > y;
+  }
+  return true;
+}
+
 export async function InstallApp() {
   const kit = path.join(process.cwd(), "setup-kit");
   let version: string | null = null;
@@ -36,6 +48,17 @@ export async function InstallApp() {
           {version ? ` Current app: v${version}` : ""}{built ? ` (built ${built})` : ""}.
         </p>
       </div>
+
+      {atLeast(version, "1.6.0") && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+          <p className="font-medium">New in v1.6: phones lock themselves on the due date — even offline</p>
+          <p className="mt-1">
+            Once the due date + grace days pass, the phone locks with no internet, even in airplane mode. The customer sees the lock date in the app
+            and gets reminders 2 days and 1 day before. The phone only needs to have been online once since the due date was set or changed.
+            Phones already set up get this by running the same setup file.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Kit os="windows" title="Windows" icon={MonitorSmartphone} file="setup-windows.bat" run={'If "Windows protected your PC" appears: More info → Run anyway.'} />

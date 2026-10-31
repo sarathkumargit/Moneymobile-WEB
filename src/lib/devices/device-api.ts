@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "crypto";
+import { firstOverdueAt } from "@/lib/billing/schedule";
 
 export const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 export const newToken = () => randomBytes(24).toString("hex");
@@ -15,11 +16,19 @@ export async function buildAgreementStatus(admin: Admin, agreementId: string | n
     .single();
   if (!a) return null;
 
-  const [{ data: sched }, { data: pays }] = await Promise.all([
-    admin.from("installment_schedules").select("due_date,amount,status").eq("agreement_id", agreementId).neq("status", "paid").order("due_date", { ascending: true }),
+  type SchedRow = { due_date: string; due_at?: string | null; amount: number | null; status: string };
+  // due_at (exact due time) comes from migration 0015; fall back to date-only until it has run.
+  const loadSchedule = async (): Promise<SchedRow[]> => {
+    const full = await admin.from("installment_schedules").select("due_date,due_at,amount,status").eq("agreement_id", agreementId).neq("status", "paid").order("due_date", { ascending: true });
+    if (!full.error) return (full.data ?? []) as SchedRow[];
+    const basic = await admin.from("installment_schedules").select("due_date,amount,status").eq("agreement_id", agreementId).neq("status", "paid").order("due_date", { ascending: true });
+    return (basic.data ?? []) as SchedRow[];
+  };
+  const [sched, { data: pays }] = await Promise.all([
+    loadSchedule(),
     admin.from("payment_transactions").select("amount").eq("agreement_id", agreementId),
   ]);
-  const unpaid = sched ?? [];
+  const unpaid = sched;
   const next = unpaid[0];
   let daysOverdue = 0;
   if (next) daysOverdue = Math.max(0, Math.floor((Date.now() - new Date(next.due_date).getTime()) / 86400000));
@@ -40,7 +49,14 @@ export async function buildAgreementStatus(admin: Admin, agreementId: string | n
   const shop = (a as { shops?: { name?: string; phone?: string } }).shops;
   const restriction = (a as { restriction?: string }).restriction ?? "active";
   const locked = restriction === "restricted";
+  // Offline lock: when the first unpaid installment goes overdue (UTC epoch ms), plus the server's
+  // clock. The phone keeps both, so it can lock itself on time with no internet and can tell if
+  // someone moves the phone's date backwards. null = nothing to enforce (paid, released, cancelled).
+  const enforced = (a as { status?: string }).status === "active";
+  const lockAt = enforced ? firstOverdueAt(unpaid, a.grace_days || 0) : null;
   return {
+    server_time: Date.now(),
+    overdue_lock_at: lockAt ? lockAt.getTime() : null,
     id: a.id, status, locked, customer_name: cust?.full_name ?? "",
     shop_name: shop?.name ?? "", shop_phone: shop?.phone ?? "",
     next_due_date: next?.due_date ?? null,

@@ -70,6 +70,10 @@ export function NewShopForm() {
                 <Label htmlFor="shop_address">Address</Label>
                 <Input id="shop_address" name="shop_address" placeholder="City / address" />
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="license_limit">Licenses (phones the shop may sell)</Label>
+                <Input id="license_limit" name="license_limit" type="number" min={0} placeholder="e.g. 10 — empty = unlimited" />
+              </div>
             </div>
           </div>
 

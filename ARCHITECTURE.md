@@ -45,6 +45,15 @@ status; the phone locks when `agreement.locked` is true. `locked` comes from
 3. **Manual** — staff Lock button (`device-management/actions.ts`) sets restricted + reason='manual'.
 `restriction_reason` keeps the three apart so a payment never lifts a SIM or manual lock.
 
+## Offline overdue lock (phone locks itself with no internet)
+Every heartbeat's `agreement` also carries `server_time` and `overdue_lock_at` (UTC epoch ms, built in
+`buildAgreementStatus` from `firstOverdueAt()` in `lib/billing/schedule.ts` — the SAME rule as `isOverdue`,
+so phone and server always agree). The phone stores both (`OfflineLockGuard` in the Android app) and
+locks itself at that moment even with no connection; the next heartbeat still wins (payment, new due
+date or staff unlock replace the deadline). No migration needed. `overdue_lock_at` is null for
+agreements that are not `active`, so nothing is enforced for paid/released/cancelled ones.
+If you change the overdue rule in `schedule.ts`, the phone follows automatically.
+
 ## Database migrations (supabase/migrations)
 Run new ones in the Supabase SQL editor in order. The app is written to **degrade gracefully**
 if a migration hasn't run yet (queries fall back), so a missing migration slows a feature, it
@@ -66,3 +75,9 @@ auto-lock (`restriction_reason`), 0015 due date+time (`due_at`).
 - "Wrong time / locks at wrong hour" → it's a Sri Lanka-time issue; check `srilanka-time.ts` usage.
 - "Page slow" → you're probably in `npm run dev`. Build + start. Otherwise check for a new
   sequential query that could join a `Promise.all`.
+
+
+## Licenses, shop management, passwords
+- `shops.license_limit` (migration `supabase/migrations/0018_license_limit.sql`, NULL = unlimited). One license = one agreement; all agreements of the shop count. Enforced in `createAgreement` (friendly message) and by a DB trigger (`enforce_license_limit`). If the migration is not run the app treats shops as unlimited.
+- Super admin (Shops page → Manage): edit name/phone/address/status/licenses, reset the owner's password, delete a shop (blocked while it has agreements or phones — suspend instead). Owners and Employees pages: reset password.
+- Shop owner (Employees page): edit, activate/deactivate, delete, reset password (same-shop employees only).

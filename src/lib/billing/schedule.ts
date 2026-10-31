@@ -48,3 +48,17 @@ export function allocatePayment(rows: ScheduleRow[], amount: number): { id: stri
 export function countOverdue(rows: { due_date: string; due_at?: string | null; status: string }[], graceDays: number, now = new Date()): number {
   return rows.filter((r) => isOverdue(r, graceDays, now)).length;
 }
+
+// The earliest moment any unpaid installment becomes overdue (due time + grace days), or null when
+// nothing is unpaid. Uses the SAME rule as isOverdue(), so the phone can lock itself at the exact
+// moment the server would — even while it has no internet.
+export function firstOverdueAt(rows: { due_date: string; due_at?: string | null; status: string }[], graceDays: number): Date | null {
+  let first: Date | null = null;
+  for (const r of rows) {
+    if (r.status === "paid") continue;
+    const at = dueMoment(r);
+    at.setDate(at.getDate() + (graceDays || 0));
+    if (!first || at.getTime() < first.getTime()) first = at;
+  }
+  return first;
+}

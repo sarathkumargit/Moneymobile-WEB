@@ -5,7 +5,8 @@ import { Pencil, Power, Trash2, X, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { updateEmployee, setEmployeeActive, deleteEmployee, type ActionState } from "@/app/shop/employees/actions";
+import { ResetPassword } from "@/components/shared/reset-password";
+import { resetEmployeePassword, updateEmployee, setEmployeeActive, deleteEmployee, type ActionState } from "@/app/shop/employees/actions";
 
 type Emp = { id: string; full_name: string | null; username: string | null; status: "active" | "disabled" };
 const initial: ActionState = {};
@@ -49,6 +50,7 @@ export function EmployeeRow({ emp }: { emp: Emp }) {
               </form>
               <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
             </div>
+            <div className="mt-4 border-t pt-3"><ResetPassword action={resetEmployeePassword} idName="employee_id" id={emp.id} /></div>
             <div className="mt-4 border-t pt-3">
               {delState.error && <div className="mb-2 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"><AlertCircle className="h-4 w-4 shrink-0" />{delState.error}</div>}
               {!confirmDel ? (

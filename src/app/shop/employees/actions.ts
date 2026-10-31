@@ -107,3 +107,18 @@ export async function deleteEmployee(_p: ActionState, fd: FormData): Promise<Act
   revalidatePath("/shop/employees"); revalidatePath("/shop/devices"); revalidatePath("/shop/customers");
   return { success: "Employee deleted." };
 }
+
+// Shop admin: set a new password for one of their employees.
+export async function resetEmployeePassword(_p: ActionState, fd: FormData): Promise<ActionState> {
+  const s = await getSessionProfile();
+  if (!s || s.profile.role !== "shop_admin" || !s.profile.shop_id) return { error: "Not authorized" };
+  const id = String(fd.get("employee_id") || "").trim();
+  const password = String(fd.get("password") || "");
+  if (password.length < 6) return { error: "Password must be at least 6 characters." };
+  const admin = await guardEmployee(s.profile.shop_id, id);
+  if (!admin) return { error: "Employee not found." };
+  const { error } = await admin.auth.admin.updateUserById(id, { password });
+  if (error) return { error: error.message };
+  await admin.from("audit_logs").insert({ shop_id: s.profile.shop_id, actor_id: s.user.id, action: "reset_employee_password", entity: "profiles", entity_id: id, details: {} });
+  return { success: "Password changed." };
+}

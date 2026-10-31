@@ -3,7 +3,7 @@ import { Store } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { NewShopForm } from "@/components/shops/new-shop-form";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { ShopRow, type ShopItem } from "@/components/shops/shop-row";
 
 export const dynamic = "force-dynamic";
 
@@ -14,16 +14,25 @@ type ShopRow = {
   address: string | null;
   status: "active" | "suspended";
   created_at: string;
+  owner_id: string | null;
+  license_limit?: number | null;
   owner: { full_name: string | null; username: string | null } | null;
 };
 
 export default async function ShopsPage() {
   const supabase = createClient();
-  const { data } = await supabase
-    .from("shops")
-    .select("id,name,phone,address,status,created_at, owner:profiles!shops_owner_fk(full_name,username)")
-    .order("created_at", { ascending: false });
-  const shops = (data ?? []) as unknown as ShopRow[];
+  const cols = "id,name,phone,address,status,created_at,owner_id, owner:profiles!shops_owner_fk(full_name,username)";
+  let res = await supabase.from("shops").select(cols + ",license_limit").order("created_at", { ascending: false });
+  if (res.error) res = (await supabase.from("shops").select(cols).order("created_at", { ascending: false })) as typeof res; // migration 0018 not run yet
+  const shops = (res.data ?? []) as unknown as ShopRow[];
+  const { data: agr } = await supabase.from("installment_agreements").select("shop_id").limit(50000);
+  const usedBy: Record<string, number> = {};
+  for (const a of (agr ?? []) as { shop_id: string }[]) usedBy[a.shop_id] = (usedBy[a.shop_id] ?? 0) + 1;
+  const items: ShopItem[] = shops.map((s) => ({
+    id: s.id, name: s.name, phone: s.phone, address: s.address, status: s.status, created: formatSLDate(s.created_at),
+    ownerId: s.owner_id, ownerName: s.owner?.full_name ?? null, ownerUsername: s.owner?.username ?? null,
+    licenseLimit: s.license_limit ?? null, used: usedBy[s.id] ?? 0,
+  }));
 
   return (
     <>
@@ -31,7 +40,7 @@ export default async function ShopsPage() {
 
       <Card>
         <CardContent className="p-0">
-          {shops.length === 0 ? (
+          {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
                 <Store className="h-6 w-6 text-muted-foreground" />
@@ -47,28 +56,14 @@ export default async function ShopsPage() {
                     <th className="p-4 font-medium">Shop</th>
                     <th className="p-4 font-medium">Owner</th>
                     <th className="p-4 font-medium">Phone</th>
+                    <th className="p-4 font-medium">Licenses</th>
                     <th className="p-4 font-medium">Created</th>
                     <th className="p-4 font-medium">Status</th>
+                    <th className="p-4 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {shops.map((s) => (
-                    <tr key={s.id} className="border-b last:border-0">
-                      <td className="p-4">
-                        <div className="font-medium">{s.name}</div>
-                        {s.address && <div className="text-xs text-muted-foreground">{s.address}</div>}
-                      </td>
-                      <td className="p-4">
-                        <div>{s.owner?.full_name ?? "—"}</div>
-                        {s.owner?.username && <div className="text-xs text-muted-foreground">@{s.owner.username}</div>}
-                      </td>
-                      <td className="p-4 text-muted-foreground">{s.phone ?? "—"}</td>
-                      <td className="p-4 text-muted-foreground">{formatSLDate(s.created_at)}</td>
-                      <td className="p-4">
-                        <Badge variant={s.status === "active" ? "success" : "danger"} className="capitalize">{s.status}</Badge>
-                      </td>
-                    </tr>
-                  ))}
+                  {items.map((s) => <ShopRow key={s.id} shop={s} />)}
                 </tbody>
               </table>
             </div>

@@ -1,6 +1,8 @@
 import { UserCog } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
+import { ResetPassword } from "@/components/shared/reset-password";
+import { resetUserPassword } from "@/app/super-admin/shops/actions";
 import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +44,7 @@ export default async function OwnersPage() {
                   <th className="p-4 font-medium">Username</th>
                   <th className="p-4 font-medium">Shop</th>
                   <th className="p-4 font-medium">Status</th>
+                  <th className="p-4 font-medium">Password</th>
                 </tr>
               </thead>
               <tbody>
@@ -53,6 +56,7 @@ export default async function OwnersPage() {
                     <td className="p-4">
                       <Badge variant={o.status === "active" ? "success" : "neutral"} className="capitalize">{o.status}</Badge>
                     </td>
+                    <td className="p-4"><ResetPassword action={resetUserPassword} idName="user_id" id={o.id} /></td>
                   </tr>
                 ))}
               </tbody>
