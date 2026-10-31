@@ -47,7 +47,7 @@ export function MobileNav({ role, userName }: { role: Role; userName: string }) 
           <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[82%] flex-col border-r bg-card shadow-xl">
             <div className="flex h-16 items-center justify-between gap-2 border-b px-4">
               <div className="flex min-w-0 items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary text-primary-foreground">
                   <Smartphone className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 leading-tight">
@@ -74,7 +74,7 @@ export function MobileNav({ role, userName }: { role: Role; userName: string }) 
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                       active
-                        ? "bg-primary text-primary-foreground shadow-sm"
+                        ? "bg-primary/10 text-primary"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
                       item.soon && "cursor-default opacity-60"
                     )}
@@ -110,7 +110,7 @@ export function MobileNav({ role, userName }: { role: Role; userName: string }) 
                   className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
                   <LogOut className="h-4 w-4" />
-                  Log out
+                  Sign out
                 </button>
               </form>
             </div>

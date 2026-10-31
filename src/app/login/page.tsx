@@ -18,15 +18,15 @@ export default async function LoginPage({
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
       {/* Brand panel */}
-      <div className="hidden lg:flex flex-col justify-between bg-primary p-12 text-primary-foreground">
+      <div className="hidden lg:flex flex-col justify-between bg-gradient-to-br from-primary to-[#0A3F8F] p-12 text-primary-foreground">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
+          <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-white/15">
             <Smartphone className="h-6 w-6" />
           </div>
           <span className="text-xl font-semibold">MoneyMobile</span>
         </div>
         <div className="space-y-4 max-w-md">
-          <h1 className="text-3xl font-bold leading-tight">
+          <h1 className="text-4xl font-semibold leading-[1.1] tracking-tight">
             Installment management for mobile phone retailers
           </h1>
           <p className="text-primary-foreground/80">
@@ -50,7 +50,7 @@ export default async function LoginPage({
           </div>
 
           <div>
-            <h2 className="text-2xl font-bold">Sign in</h2>
+            <h2 className="text-3xl font-semibold tracking-tight">Sign in</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Enter your credentials to access your workspace.
             </p>
@@ -72,7 +72,7 @@ export default async function LoginPage({
               <Label htmlFor="password">Password</Label>
               <Input id="password" name="password" type="password" placeholder="••••••••" required autoComplete="current-password" />
             </div>
-            <Button className="w-full" type="submit">Sign in</Button>
+            <Button className="w-full" size="lg" type="submit">Sign in</Button>
           </form>
 
           <p className="text-center text-xs text-muted-foreground">

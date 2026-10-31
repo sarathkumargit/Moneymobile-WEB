@@ -2,31 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Apple Human Interface look: system blue accent, quiet grays, soft depth, SF type. */
 :root {
-  --background: 210 40% 98%;
-  --foreground: 222 47% 11%;
+  --background: 240 5% 96%;            /* systemGroupedBackground  #F5F5F7 */
+  --foreground: 0 0% 11%;              /* label                    #1D1D1F */
   --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --primary: 160 84% 39%;
+  --card-foreground: 0 0% 11%;
+  --primary: 211 100% 45%;             /* Apple blue               #0071E3 */
   --primary-foreground: 0 0% 100%;
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 222 47% 11%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
-  --accent: 152 76% 95%;
-  --accent-foreground: 160 84% 24%;
-  --destructive: 0 72% 51%;
+  --secondary: 240 5% 94%;
+  --secondary-foreground: 0 0% 11%;
+  --muted: 240 5% 95%;
+  --muted-foreground: 240 2% 44%;      /* secondaryLabel           #6E6E73 */
+  --accent: 211 100% 96%;
+  --accent-foreground: 211 100% 36%;
+  --destructive: 3 100% 59%;           /* systemRed                #FF3B30 */
   --destructive-foreground: 0 0% 100%;
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 160 84% 39%;
-  --radius: 0.75rem;
+  --border: 240 6% 90%;
+  --input: 240 6% 88%;
+  --ring: 211 100% 50%;
+  --radius: 0.875rem;
 }
 
 * { border-color: hsl(var(--border)); }
 
+html { -webkit-text-size-adjust: 100%; }
+
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
+  font-feature-settings: "kern", "liga";
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
+
+/* Large titles sit tighter, like SF Pro Display */
+h1, h2, h3 { letter-spacing: -0.022em; }
+
+/* Quiet, rounded focus ring instead of a hard outline */
+:focus-visible { outline: none; }
+
+/* Respect people who prefer less motion */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* Thin, unobtrusive scrollbars */
+* { scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.2) transparent; }

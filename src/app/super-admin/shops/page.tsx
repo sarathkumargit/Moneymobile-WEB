@@ -25,9 +25,11 @@ export default async function ShopsPage() {
   let res = await supabase.from("shops").select(cols + ",license_limit").order("created_at", { ascending: false });
   if (res.error) res = (await supabase.from("shops").select(cols).order("created_at", { ascending: false })) as typeof res; // migration 0018 not run yet
   const shops = (res.data ?? []) as unknown as ShopRow[];
-  const { data: agr } = await supabase.from("installment_agreements").select("shop_id").limit(50000);
   const usedBy: Record<string, number> = {};
-  for (const a of (agr ?? []) as { shop_id: string }[]) usedBy[a.shop_id] = (usedBy[a.shop_id] ?? 0) + 1;
+  await Promise.all(shops.map(async (sh) => {
+    const { count } = await supabase.from("installment_agreements").select("*", { count: "exact", head: true }).eq("shop_id", sh.id);
+    usedBy[sh.id] = count ?? 0;
+  }));
   const items: ShopItem[] = shops.map((s) => ({
     id: s.id, name: s.name, phone: s.phone, address: s.address, status: s.status, created: formatSLDate(s.created_at),
     ownerId: s.owner_id, ownerName: s.owner?.full_name ?? null, ownerUsername: s.owner?.username ?? null,

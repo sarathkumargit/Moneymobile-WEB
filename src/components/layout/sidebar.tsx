@@ -13,9 +13,9 @@ export function Sidebar({ role, userName }: { role: Role; userName: string }) {
   const meta = roleMeta[role];
 
   return (
-    <aside className="hidden md:flex w-64 shrink-0 flex-col border-r bg-card">
+    <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-black/[0.06] bg-card/80 backdrop-blur-xl">
       <div className="flex items-center gap-2.5 px-5 h-16 border-b">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary text-primary-foreground">
           <Smartphone className="h-5 w-5" />
         </div>
         <div className="leading-tight">
@@ -33,7 +33,7 @@ export function Sidebar({ role, userName }: { role: Role; userName: string }) {
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 active
-                  ? "bg-primary text-primary-foreground shadow-sm"
+                  ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 item.soon && "cursor-default opacity-60 hover:bg-transparent hover:text-muted-foreground"
               )}
@@ -71,7 +71,7 @@ export function Sidebar({ role, userName }: { role: Role; userName: string }) {
             className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <LogOut className="h-4 w-4" />
-            Log out
+            Sign out
           </button>
         </form>
       </div>

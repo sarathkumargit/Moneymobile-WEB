@@ -19,11 +19,11 @@ export function DashboardShell({
       <FlashToaster flash={flash} />
       <Sidebar role={role} userName={userName} />
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="flex h-16 items-center justify-between gap-3 border-b bg-card px-4 sm:px-6">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-black/[0.06] bg-card/75 px-4 backdrop-blur-xl backdrop-saturate-150 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <MobileNav role={role} userName={userName} />
             <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold sm:text-lg">{roleMeta[role].title}</h1>
+              <h1 className="truncate text-lg font-semibold sm:text-xl">{roleMeta[role].title}</h1>
               <p className="text-xs text-muted-foreground">MoneyMobile workspace</p>
             </div>
           </div>
