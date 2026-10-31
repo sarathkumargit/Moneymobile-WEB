@@ -230,3 +230,21 @@ export async function resolveSecurityEvent(fd: FormData): Promise<void> {
   if (customer_id) { revalidatePath(`/shop/customers/${customer_id}`); revalidatePath(`/employee/customers/${customer_id}`); }
   revalidatePath("/shop/device-management");
 }
+
+
+// Remove an enrollment row that has no phone record behind it (e.g. a half-finished or stale entry).
+// Phones that exist in inventory are removed with "Delete phone" instead.
+export async function removeEnrollment(fd: FormData): Promise<void> {
+  const s = await getSessionProfile();
+  if (!s || !s.profile.shop_id || !canOperate(s.profile.role)) return;
+  const id = String(fd.get("enrollment_id") || "").trim();
+  if (!id) return;
+  const admin = createAdminClient();
+  const { data: enr } = await admin.from("device_enrollments").select("id,shop_id,imei1").eq("id", id).maybeSingle();
+  if (!enr || enr.shop_id !== s.profile.shop_id) return;
+  const { error } = await admin.from("device_enrollments").delete().eq("id", id);
+  if (error) { setFlash(`Could not remove it: ${error.message}`, "error"); return; }
+  await admin.from("audit_logs").insert({ shop_id: s.profile.shop_id, actor_id: s.user.id, action: "remove_enrollment", entity: "device_enrollments", entity_id: id, details: { imei: enr.imei1 } });
+  setFlash("Entry removed.");
+  revalidatePath("/shop/device-management");
+}

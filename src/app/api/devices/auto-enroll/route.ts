@@ -73,6 +73,12 @@ export async function POST(req: Request) {
     enrId = created.id;
   }
 
+  // Boot-loader state reported by the app ("locked" | "unlocked" | "unknown"). Best effort: ignored if
+  // migration 0019 has not been run yet.
+  if (enrId && typeof di.bootloader_state === "string") {
+    await admin.from("device_enrollments").update({ bootloader_state: String(di.bootloader_state).slice(0, 16) }).eq("id", enrId);
+  }
+
   // If this phone's device is already tied to an agreement, send its status down right away.
   const agreementId = await resolveAgreementId(admin, { device_id: deviceId });
   if (agreementId) await admin.from("device_enrollments").update({ agreement_id: agreementId }).eq("id", enrId);

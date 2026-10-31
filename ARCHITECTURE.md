@@ -81,3 +81,8 @@ auto-lock (`restriction_reason`), 0015 due date+time (`due_at`).
 - `shops.license_limit` (migration `supabase/migrations/0018_license_limit.sql`, NULL = unlimited). One license = one agreement; all agreements of the shop count. Enforced in `createAgreement` (friendly message) and by a DB trigger (`enforce_license_limit`). If the migration is not run the app treats shops as unlimited.
 - Super admin (Shops page → Manage): edit name/phone/address/status/licenses, reset the owner's password, delete a shop (blocked while it has agreements or phones — suspend instead). Owners and Employees pages: reset password.
 - Shop owner (Employees page): edit, activate/deactivate, delete, reset password (same-shop employees only).
+
+## Anti-tamper (app 1.7.1)
+- While a phone is locked its USB port is charge-only (no file transfer, no USB debugging, USB data signaling off on Android 12+ phones that support it). All of it is lifted on unlock/release so the shop can still update over USB.
+- At enrollment the app reports `bootloader_state` (locked / unlocked / unknown); migration `0019_bootloader_state.sql` stores it. Device Management flags "Bootloader unlocked — high risk" and "No check-in for N days".
+- Device Management has Delete phone / Reset for resale per phone, and Remove for stale enrollment rows.

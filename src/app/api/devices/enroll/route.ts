@@ -23,6 +23,9 @@ export async function POST(req: Request) {
   }).eq("id", enr.id);
   if (enr.device_id) await admin.from("devices").update({ enrollment: "enrolled" }).eq("id", enr.device_id);
 
+  if (typeof di.bootloader_state === "string") {
+    await admin.from("device_enrollments").update({ bootloader_state: String(di.bootloader_state).slice(0, 16) }).eq("id", enr.id);
+  }
   const agreementId = await resolveAgreementId(admin, enr);
   if (agreementId && agreementId !== enr.agreement_id) {
     await admin.from("device_enrollments").update({ agreement_id: agreementId }).eq("id", enr.id);
