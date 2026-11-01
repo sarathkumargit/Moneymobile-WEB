@@ -13,7 +13,7 @@ type Admin = ReturnType<typeof import("@/lib/supabase/admin").createAdminClient>
 export async function evaluateOverdueLock(admin: Admin, agreementId: string): Promise<"locked" | "unlocked" | "unchanged"> {
   const { data: a } = await admin
     .from("installment_agreements")
-    .select("id,status,restriction,restriction_reason,grace_days")
+    .select("id,status,restriction,restriction_reason,grace_days,outstanding_balance")
     .eq("id", agreementId)
     .maybeSingle();
   if (!a) return "unchanged";
@@ -25,7 +25,8 @@ export async function evaluateOverdueLock(admin: Admin, agreementId: string): Pr
     // due_at column not present yet (migration 0015): fall back to date-only.
     sched = (await admin.from("installment_schedules").select("due_date,status").eq("agreement_id", agreementId)).data as { due_date: string; status: string }[] | null;
   }
-  const overdue = countOverdue(sched ?? [], a.grace_days || 0);
+  // Balance already 0 (fully paid): nothing can be overdue, whatever the schedule rows say.
+  const overdue = Number((a as { outstanding_balance?: number | null }).outstanding_balance ?? 1) <= 0 ? 0 : countOverdue(sched ?? [], a.grace_days || 0);
 
   const restricted = a.restriction === "restricted";
   const reason = (a as { restriction_reason?: string | null }).restriction_reason ?? null;

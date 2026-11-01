@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { deviceSnapshot, missingSnapshotColumn } from "@/lib/devices/device-snapshot";
 import { calcInstallment, type InterestType } from "@/lib/billing/installment";
 import { getLicense, LICENSE_MSG } from "@/lib/admin/license";
+import { setFlash } from "@/lib/shared/flash";
 import { slToUtcIso, slDate } from "@/lib/shared/srilanka-time";
 export type ActionState = { error?: string; success?: string };
 
@@ -91,4 +92,31 @@ export async function createAgreement(_p: ActionState, fd: FormData): Promise<Ac
 
   revalidatePath("/shop/installments"); revalidatePath("/shop"); revalidatePath("/shop/payments"); revalidatePath("/employee/installments");
   return { success: `Agreement created — ${months} × ${calc.monthly.toLocaleString()} (total ${calc.totalRepayment.toLocaleString()}). Schedule generated.` };
+}
+
+// Attach an in-stock phone to an agreement that has none (e.g. the phone was deleted and registered
+// again). Does NOT create a new agreement, so it uses no extra license.
+export async function linkPhoneToAgreement(fd: FormData): Promise<void> {
+  const s = await getSessionProfile();
+  if (!s || !s.profile.shop_id || !(s.profile.role === "shop_admin" || s.profile.role === "employee")) return;
+  const agreement_id = String(fd.get("agreement_id") || "").trim();
+  const device_id = String(fd.get("device_id") || "").trim();
+  if (!agreement_id || !device_id) return;
+  const admin = createAdminClient();
+  const [{ data: agr }, { data: dev }] = await Promise.all([
+    admin.from("installment_agreements").select("id,shop_id,customer_id,device_id").eq("id", agreement_id).maybeSingle(),
+    admin.from("devices").select("id,shop_id,customer_id").eq("id", device_id).maybeSingle(),
+  ]);
+  const shop = s.profile.shop_id;
+  if (!agr || !dev || agr.shop_id !== shop || dev.shop_id !== shop) return;
+  if (dev.customer_id && dev.customer_id !== agr.customer_id) { setFlash("That phone already belongs to another customer.", "error"); return; }
+  const { error: e1 } = await admin.from("installment_agreements").update({ device_id }).eq("id", agreement_id);
+  if (e1) { setFlash(`Could not link the phone: ${e1.message}`, "error"); return; }
+  await admin.from("devices").update({ status: "under_installment", customer_id: agr.customer_id }).eq("id", device_id);
+  // The phone's own record (if it has registered) must point at this agreement and customer.
+  await admin.from("device_enrollments").update({ agreement_id, customer_id: agr.customer_id }).eq("device_id", device_id);
+  await admin.from("audit_logs").insert({ shop_id: shop, actor_id: s.user.id, action: "link_phone_to_agreement", entity: "installment_agreements", entity_id: agreement_id, details: { device_id } });
+  setFlash("Phone linked to the agreement.");
+  revalidatePath(`/shop/customers/${agr.customer_id}`);
+  revalidatePath(`/employee/customers/${agr.customer_id}`);
 }

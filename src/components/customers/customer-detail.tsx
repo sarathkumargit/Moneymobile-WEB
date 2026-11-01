@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/shared/utils";
+import { linkPhoneToAgreement } from "@/app/shop/installments/actions";
 import { rowDisplayStatus } from "@/lib/billing/schedule";
 
 const sBadge: Record<string, "success" | "warning" | "danger" | "neutral"> = { active: "success", completed: "neutral", defaulted: "danger", released: "neutral", cancelled: "neutral", draft: "warning" };
@@ -229,7 +230,20 @@ export async function CustomerDetail({ id, backHref }: { id: string; backHref: s
     <Card><CardHeader><CardTitle className="flex items-center gap-2"><Smartphone className="h-4 w-4" /> Device control</CardTitle></CardHeader><CardContent className="space-y-4">
       {devs.length === 0 ? (
         <p className="text-sm text-muted-foreground">Assign a phone to this customer first (below), then you can lock/unlock it here.</p>
-      ) : devs.map((d) => {
+      ) : null}
+      {devs.length === 0 && canOperate && (agreements ?? []).length > 0 && (allDevices ?? []).length > 0 ? (
+        <form action={linkPhoneToAgreement} className="flex flex-wrap items-end gap-2 rounded-xl border p-3">
+          <div className="text-sm font-medium w-full">Link an existing phone to this customer's agreement</div>
+          <select name="agreement_id" className="h-10 rounded-lg border bg-background px-3 text-sm">
+            {(agreements ?? []).map((a) => { const r = a as unknown as { id: string; agreement_code?: string | null }; return <option key={r.id} value={r.id}>{r.agreement_code ?? r.id.slice(0, 8)}</option>; })}
+          </select>
+          <select name="device_id" className="h-10 rounded-lg border bg-background px-3 text-sm">
+            {(allDevices ?? []).map((d) => <option key={d.id} value={d.id}>{d.brand} {d.model} · {d.imei1 ?? "no IMEI"}</option>)}
+          </select>
+          <Button type="submit" size="sm">Link phone</Button>
+        </form>
+      ) : null}
+      {devs.map((d) => {
         const e = enrByDevice[d.id];
         // "connected" = the app has enrolled and checked in at least once. Re-issuing an enrollment
         // token flips status back to "pending", but the phone keeps its device token and keeps syncing.

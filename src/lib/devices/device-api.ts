@@ -28,7 +28,10 @@ export async function buildAgreementStatus(admin: Admin, agreementId: string | n
     loadSchedule(),
     admin.from("payment_transactions").select("amount").eq("agreement_id", agreementId),
   ]);
-  const unpaid = sched;
+  // Nothing owed (balance 0): leftover unpaid schedule rows must not show a next due date, overdue
+  // amount or deadline on the phone.
+  const settled = Number(a.outstanding_balance || 0) <= 0;
+  const unpaid = settled ? [] : sched;
   const next = unpaid[0];
   let daysOverdue = 0;
   if (next) daysOverdue = Math.max(0, Math.floor((Date.now() - new Date(next.due_date).getTime()) / 86400000));
@@ -48,11 +51,11 @@ export async function buildAgreementStatus(admin: Admin, agreementId: string | n
   const cust = (a as { customers?: { full_name?: string } }).customers;
   const shop = (a as { shops?: { name?: string; phone?: string } }).shops;
   const restriction = (a as { restriction?: string }).restriction ?? "active";
-  const locked = restriction === "restricted";
+  const locked = restriction === "restricted" && !settled;
   // Offline lock: when the first unpaid installment goes overdue (UTC epoch ms), plus the server's
   // clock. The phone keeps both, so it can lock itself on time with no internet and can tell if
   // someone moves the phone's date backwards. null = nothing to enforce (paid, released, cancelled).
-  const enforced = (a as { status?: string }).status === "active";
+  const enforced = (a as { status?: string }).status === "active" && !settled;
   const lockAt = enforced ? firstOverdueAt(unpaid, a.grace_days || 0) : null;
   return {
     server_time: Date.now(),
@@ -60,7 +63,7 @@ export async function buildAgreementStatus(admin: Admin, agreementId: string | n
     id: a.id, status, locked, customer_name: cust?.full_name ?? "",
     shop_name: shop?.name ?? "", shop_phone: shop?.phone ?? "",
     next_due_date: next?.due_date ?? null,
-    next_due_amount: next ? Number(next.amount) : Number(a.installment_amount || 0),
+    next_due_amount: next ? Number(next.amount) : settled ? 0 : Number(a.installment_amount || 0),
     outstanding_balance: Number(a.outstanding_balance || 0),
     overdue_amount: overdueAmount,
     grace_period_days: a.grace_days || 0, days_overdue: daysOverdue,
