@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "crypto";
-import { firstOverdueAt } from "@/lib/billing/schedule";
+import { firstOverdueAt, overdueMoments } from "@/lib/billing/schedule";
 
 export const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 export const newToken = () => randomBytes(24).toString("hex");
@@ -57,9 +57,13 @@ export async function buildAgreementStatus(admin: Admin, agreementId: string | n
   // someone moves the phone's date backwards. null = nothing to enforce (paid, released, cancelled).
   const enforced = (a as { status?: string }).status === "active" && !settled;
   const lockAt = enforced ? firstOverdueAt(unpaid, a.grace_days || 0) : null;
+  // The following months' deadlines (after the first), so a phone that stays offline for months
+  // still locks on every missed month, even right after a shop unlock code cleared one.
+  const laterLockAt = enforced && lockAt ? overdueMoments(unpaid, a.grace_days || 0).filter((t) => t > lockAt.getTime()).slice(0, 24) : [];
   return {
     server_time: Date.now(),
     overdue_lock_at: lockAt ? lockAt.getTime() : null,
+    later_lock_at: laterLockAt,
     id: a.id, status, locked, customer_name: cust?.full_name ?? "",
     shop_name: shop?.name ?? "", shop_phone: shop?.phone ?? "",
     next_due_date: next?.due_date ?? null,
@@ -94,14 +98,16 @@ export async function resolveAgreementId(
   }
 
   if (enr.customer_id) {
+    // Only an agreement that belongs to THIS phone, or to no phone yet. A customer with two phones
+    // must never get the other phone's balance / lock state.
     const { data } = await admin
       .from("installment_agreements")
-      .select("id,status,created_at")
+      .select("id,status,created_at,device_id")
       .eq("customer_id", enr.customer_id)
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (data?.id) return data.id;
+      .limit(10);
+    const mine = (data ?? []).find((a: { device_id: string | null }) => !a.device_id || a.device_id === enr.device_id);
+    if (mine?.id) return mine.id;
   }
 
   return null;

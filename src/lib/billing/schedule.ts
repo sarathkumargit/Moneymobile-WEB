@@ -49,6 +49,19 @@ export function countOverdue(rows: { due_date: string; due_at?: string | null; s
   return rows.filter((r) => isOverdue(r, graceDays, now)).length;
 }
 
+// Every unpaid installment's own lock moment (due time + grace days), earliest first. The phone keeps
+// these so it locks itself month after month with no internet, not only for the first unpaid month.
+export function overdueMoments(rows: { due_date: string; due_at?: string | null; status: string }[], graceDays: number): number[] {
+  const out: number[] = [];
+  for (const r of rows) {
+    if (r.status === "paid") continue;
+    const at = dueMoment(r);
+    at.setDate(at.getDate() + (graceDays || 0));
+    out.push(at.getTime());
+  }
+  return out.sort((a, b) => a - b);
+}
+
 // The earliest moment any unpaid installment becomes overdue (due time + grace days), or null when
 // nothing is unpaid. Uses the SAME rule as isOverdue(), so the phone can lock itself at the exact
 // moment the server would — even while it has no internet.

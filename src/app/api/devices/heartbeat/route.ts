@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sha256, resolveAgreementId, buildAgreementStatus } from "@/lib/devices/device-api";
 import { raiseSimAlert } from "@/lib/devices/sim-alert";
 import { evaluateOverdueLock } from "@/lib/billing/overdue-lock";
-import { commandKey, signCommand, signAgreement } from "@/lib/devices/command-sign";
+import { commandKey, signCommand, signAgreement, signLaterDeadlines } from "@/lib/devices/command-sign";
 
 export async function POST(req: Request) {
   const b = await req.json().catch(() => null);
@@ -72,8 +72,18 @@ export async function POST(req: Request) {
 
   // Deliver the NEWEST pending command; older pending ones are stale (e.g. repeated Lock clicks).
   const takeCommand = async () => {
-    const { data: cmd } = await admin.from("device_commands").select("id,command,reason,created_at").eq("enrollment_id", enr.id).eq("status", "pending").order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (!cmd) return null;
+    let { data: cmd } = await admin.from("device_commands").select("id,command,reason,created_at").eq("enrollment_id", enr.id).eq("status", "pending").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (!cmd) {
+      // Nothing new. But if the newest command was handed over and never confirmed (the response was
+      // lost on a weak connection), hand it over again after 90 s. Only the NEWEST command is ever
+      // repeated, so an old Lock can never come back after a later Unlock. The phone ignores an id it
+      // already ran and simply confirms it again.
+      const { data: latest } = await admin.from("device_commands").select("id,command,reason,created_at,status,sent_at")
+        .eq("enrollment_id", enr.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      const stale = latest?.status === "sent" && !!latest.sent_at && Date.now() - new Date(latest.sent_at as string).getTime() > 90_000;
+      if (!latest || !stale) return null;
+      cmd = { id: latest.id, command: latest.command, reason: latest.reason, created_at: latest.created_at };
+    }
     await Promise.all([
       admin.from("device_commands").update({ status: "superseded", result: "replaced by a newer command" })
         .eq("enrollment_id", enr.id).eq("status", "pending").neq("id", cmd.id),
@@ -118,7 +128,11 @@ export async function POST(req: Request) {
 
   const [, , command, agreement] = await Promise.all([updateStatus(), updateLocation(), takeCommand(), loadAgreement(), updateSim(), updateFcm()]);
   const signedAgreement = agreement
-    ? { ...agreement, sig: signAgreement(enr.id, { id: agreement.id, locked: agreement.locked, overdue_lock_at: agreement.overdue_lock_at, server_time: agreement.server_time }) }
+    ? {
+        ...agreement,
+        sig: signAgreement(enr.id, { id: agreement.id, locked: agreement.locked, overdue_lock_at: agreement.overdue_lock_at, server_time: agreement.server_time }),
+        later_sig: signLaterDeadlines(enr.id, { id: agreement.id, later_lock_at: agreement.later_lock_at, server_time: agreement.server_time }),
+      }
     : agreement;
   // Hand the signing key to a phone that has none yet (phones registered before signing existed).
   // Phones that already hold one never receive it again.

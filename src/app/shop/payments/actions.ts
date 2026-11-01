@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { allocatePayment, type ScheduleRow } from "@/lib/billing/schedule";
 import { evaluateOverdueLock } from "@/lib/billing/overdue-lock";
+import { nudgePhoneByAgreement } from "@/lib/devices/nudge";
 import { deviceSnapshot, missingSnapshotColumn, type DeviceSnapshot } from "@/lib/devices/device-snapshot";
 export type ActionState = { error?: string; success?: string };
 export async function recordPayment(_p: ActionState, fd: FormData): Promise<ActionState> {
@@ -35,6 +36,12 @@ export async function recordPayment(_p: ActionState, fd: FormData): Promise<Acti
   await supabase.from("installment_agreements").update({
     outstanding_balance: newBalance, ...(newBalance === 0 ? { status: "completed" } : {}),
   }).eq("id", agreement_id);
+  // Fully paid: nothing is owed, so no lock of any kind should remain on the record (the phone
+  // already ignores it at zero balance; this keeps the dashboard honest and the Release flow clean).
+  // Separate step so an older database without restriction_reason can never block the payment itself.
+  if (newBalance === 0) {
+    await supabase.from("installment_agreements").update({ restriction: "active", restriction_reason: null }).eq("id", agreement_id);
+  }
 
   // Tick off the installment months this cash covers (oldest first), then re-check the overdue
   // lock: if every overdue month is now cleared, the phone unlocks on its next check-in.
@@ -48,6 +55,10 @@ export async function recordPayment(_p: ActionState, fd: FormData): Promise<Acti
     unlockedForOverdue = result === "unlocked";
   } catch (e) {
     console.warn("[payment] schedule/overdue update skipped (run migrations 0014):", (e as Error).message);
+  }
+  // Payment cleared a lock (or paid everything): wake the phone so it unlocks within seconds.
+  if (unlockedForOverdue || newBalance === 0) {
+    await nudgePhoneByAgreement(createAdminClient(), agreement_id, (agr as { device_id?: string | null }).device_id);
   }
   await supabase.from("audit_logs").insert({ shop_id: s.profile.shop_id, actor_id: s.user.id, action: "record_payment", entity: "payment_transactions", entity_id: agreement_id, details: { amount, newBalance } });
   revalidatePath("/shop/payments"); revalidatePath("/shop/installments"); revalidatePath("/shop");
