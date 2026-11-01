@@ -1,5 +1,6 @@
 export const runtime = "nodejs";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { commandKey } from "@/lib/devices/command-sign";
 import { sha256, newToken, resolveAgreementId, buildAgreementStatus } from "@/lib/devices/device-api";
 
 export async function POST(req: Request) {
@@ -32,5 +33,5 @@ export async function POST(req: Request) {
   }
   const agreement = await buildAgreementStatus(admin, agreementId);
   await admin.from("audit_logs").insert({ shop_id: enr.shop_id, action: "device_enrolled", entity: "device_enrollments", entity_id: enr.id, details: { model: di.model ?? null } });
-  return Response.json({ success: true, device_id: enr.id, device_token: deviceToken, agreement, message: "Device enrolled" });
+  return Response.json({ success: true, device_id: enr.id, device_token: deviceToken, command_key: commandKey(enr.id as string), agreement, message: "Device enrolled" });
 }

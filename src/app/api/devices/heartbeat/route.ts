@@ -3,12 +3,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sha256, resolveAgreementId, buildAgreementStatus } from "@/lib/devices/device-api";
 import { raiseSimAlert } from "@/lib/devices/sim-alert";
 import { evaluateOverdueLock } from "@/lib/billing/overdue-lock";
+import { commandKey, signCommand, signAgreement } from "@/lib/devices/command-sign";
 
 export async function POST(req: Request) {
   const b = await req.json().catch(() => null);
   if (!b) return Response.json({ success: false }, { status: 400 });
   const admin = createAdminClient();
-  const { data: enr } = await admin.from("device_enrollments").select("*").eq("id", b.device_id).maybeSingle();
+  const { data: enr, error: enrErr } = await admin.from("device_enrollments").select("*").eq("id", b.device_id).maybeSingle();
+  // A database hiccup is not "this phone is unknown": answering 401 would make the phone drop its
+  // registration and register again. Say "try later" instead.
+  if (enrErr) return Response.json({ success: false, message: "Temporary server problem" }, { status: 503 });
   if (!enr || !enr.device_token_hash || enr.device_token_hash !== sha256(b.device_token || "")) {
     return Response.json({ success: false }, { status: 401 });
   }
@@ -75,7 +79,8 @@ export async function POST(req: Request) {
         .eq("enrollment_id", enr.id).eq("status", "pending").neq("id", cmd.id),
       admin.from("device_commands").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", cmd.id),
     ]);
-    return { id: cmd.id, type: cmd.command, reason: cmd.reason, issued_at: cmd.created_at };
+    const out = { id: cmd.id, type: cmd.command as string, reason: cmd.reason, issued_at: cmd.created_at as string };
+    return { ...out, sig: signCommand(enr.id, out) };
   };
 
   const loadAgreement = async () => {
@@ -112,5 +117,14 @@ export async function POST(req: Request) {
   };
 
   const [, , command, agreement] = await Promise.all([updateStatus(), updateLocation(), takeCommand(), loadAgreement(), updateSim(), updateFcm()]);
-  return Response.json({ success: true, command, agreement });
+  const signedAgreement = agreement
+    ? { ...agreement, sig: signAgreement(enr.id, { id: agreement.id, locked: agreement.locked, overdue_lock_at: agreement.overdue_lock_at, server_time: agreement.server_time }) }
+    : agreement;
+  // Hand the signing key to a phone that has none yet (phones registered before signing existed).
+  // Phones that already hold one never receive it again.
+  const key = b.has_command_key === true ? null : commandKey(enr.id);
+  // Optional: Google account(s) that must sign in after any factory reset / reflash (Android 11+).
+  // Set FRP_ACCOUNT_IDS to a comma-separated list of numeric Google account IDs.
+  const frp = (process.env.FRP_ACCOUNT_IDS || "").split(",").map((x) => x.trim()).filter(Boolean);
+  return Response.json({ success: true, command, agreement: signedAgreement, command_key: key, frp_account_ids: frp });
 }

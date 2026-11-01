@@ -1,5 +1,6 @@
 export const runtime = "nodejs";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { commandKey } from "@/lib/devices/command-sign";
 import { sha256, newToken, resolveAgreementId, buildAgreementStatus } from "@/lib/devices/device-api";
 
 // Token-free enrollment used by the shop's setup file. The phone authenticates with the
@@ -85,5 +86,5 @@ export async function POST(req: Request) {
   const agreement = await buildAgreementStatus(admin, agreementId);
 
   await admin.from("audit_logs").insert({ shop_id: shopId, action: "device_auto_enrolled", entity: "device_enrollments", entity_id: enrId, details: { imei, model: di.model ?? null } });
-  return Response.json({ success: true, device_id: enrId, device_token: deviceToken, agreement, message: "Device registered" });
+  return Response.json({ success: true, device_id: enrId, device_token: deviceToken, command_key: commandKey(enrId as string), agreement, message: "Device registered" });
 }
