@@ -60,6 +60,18 @@ export async function InstallApp() {
         </div>
       )}
 
+      {atLeast(version, "1.9.0") && (
+        <div className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-300">
+          <p className="font-medium">New in v1.9: stronger protection and two-SIM phones</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            <li>The phone ignores any lock, unlock or release that the shop server has not signed.</li>
+            <li>With two SIMs inserted at setup, removing either one locks the phone.</li>
+            <li>Customers can no longer clear the app&apos;s data, add users or install apps from unknown sources.</li>
+            <li>The phone registers itself again if its record was deleted. Run the setup file to update older phones.</li>
+          </ul>
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2">
         <Kit os="windows" title="Windows" icon={MonitorSmartphone} file="setup-windows.bat" run={'If "Windows protected your PC" appears: More info → Run anyway.'} />
         <Kit os="mac" title="macOS" icon={Apple} file="setup-mac.command" run="First time: right-click → Open → Open. After that, double-click." />
