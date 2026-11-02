@@ -1,15 +1,14 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { createHash } from "crypto";
-import { promises as fs } from "fs";
-import path from "path";
 import { getSessionProfile } from "@/lib/auth/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { phoneServerOrigin } from "@/lib/devices/server-address";
+import { kitApk } from "@/lib/devices/kit-apk";
 
 // Shop setup details for the Install App page (browser USB setup + QR code). Signed-in shop
 // admins/employees only — it contains the shop's setup secret.
-let checksumCache: { mtime: number; size: number; sum: string } | null = null;
+let checksumCache: { key: string; sum: string } | null = null;
 
 export async function GET(req: Request) {
   const session = await getSessionProfile();
@@ -20,17 +19,18 @@ export async function GET(req: Request) {
   const { data: shop } = await admin.from("shops").select("id,name,enroll_secret").eq("id", session.profile.shop_id).maybeSingle();
   if (!shop?.enroll_secret) return Response.json({ error: "This shop has no device setup secret yet. A shop admin can create it in Shop Settings." }, { status: 409 });
 
-  const apkPath = path.join(process.cwd(), "setup-kit", "MoneyMobile.apk");
+  // Same file /api/setup-kit/apk serves (newest published version, or the bundled one).
   let apk: { size: number; built: string; checksum: string } | null = null;
-  try {
-    const st = await fs.stat(apkPath);
-    if (!checksumCache || checksumCache.mtime !== st.mtimeMs) {
+  const kit = await kitApk();
+  if (kit) {
+    const key = `${kit.source}:${kit.versionCode}:${kit.buf.length}`;
+    if (!checksumCache || checksumCache.key !== key) {
       // QR setup verifies the download with a SHA-256 of the APK file (base64url, no padding).
-      const sum = createHash("sha256").update(await fs.readFile(apkPath)).digest("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      checksumCache = { mtime: st.mtimeMs, size: st.size, sum };
+      const sum = createHash("sha256").update(kit.buf).digest("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      checksumCache = { key, sum };
     }
-    apk = { size: checksumCache.size, built: st.mtime.toISOString(), checksum: checksumCache.sum };
-  } catch { /* reported below */ }
+    apk = { size: kit.buf.length, built: (kit.builtAt ?? new Date()).toISOString(), checksum: checksumCache.sum };
+  }
 
   const { origin, fromLocalhost } = phoneServerOrigin(req);
   return Response.json({

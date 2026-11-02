@@ -17,6 +17,10 @@ const nextConfig = {
     // works on a serverless host like Vercel where only referenced files are deployed.
     outputFileTracingIncludes: {
       "/api/setup-kit/**": ["./setup-kit/**/*"],
+      // These pages show the kit's app version (lib/devices/kit-apk.ts reads the bundled file as a fallback).
+      "/shop/install-app": ["./setup-kit/MoneyMobile.apk", "./setup-kit/version.txt"],
+      "/employee/install-app": ["./setup-kit/MoneyMobile.apk", "./setup-kit/version.txt"],
+      "/super-admin/settings": ["./setup-kit/MoneyMobile.apk", "./setup-kit/version.txt"],
     },
   },
 };

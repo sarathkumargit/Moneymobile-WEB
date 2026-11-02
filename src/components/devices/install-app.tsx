@@ -1,5 +1,4 @@
-import { promises as fs } from "fs";
-import path from "path";
+import { kitApkInfo } from "@/lib/devices/kit-apk";
 import { Apple, Download, MonitorSmartphone, Smartphone, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -20,11 +19,10 @@ function atLeast(v: string | null, min: string): boolean {
 }
 
 export async function InstallApp() {
-  const kit = path.join(process.cwd(), "setup-kit");
-  let version: string | null = null;
-  let built: string | null = null;
-  try { version = (await fs.readFile(path.join(kit, "version.txt"), "utf8")).trim() || null; } catch { /* written by publish-app.command */ }
-  try { built = (await fs.stat(path.join(kit, "MoneyMobile.apk"))).mtime.toLocaleString(); } catch { /* kit missing — the download route explains */ }
+  // Newest published version (App Updates) or the bundled setup-kit file, whichever is newer.
+  const info = await kitApkInfo();
+  const version = info?.version ?? null;
+  const built = info?.builtAt ? info.builtAt.toLocaleString("en-LK", { timeZone: "Asia/Colombo" }) : null;
 
   const Kit = ({ os, title, icon: Icon, file, run }: { os: "windows" | "mac"; title: string; icon: typeof Apple; file: string; run: string }) => (
     <Card className="flex flex-col">
@@ -45,7 +43,7 @@ export async function InstallApp() {
         <p className="text-sm text-muted-foreground">
           One file for every phone. A <b>new or factory-reset</b> phone is installed, locked-down and registered to your shop.
           A phone that&apos;s <b>already set up</b> just gets the newest app — its customer and lock status stay the same.
-          {version ? ` Current app: v${version}` : ""}{built ? ` (built ${built})` : ""}.
+          {version ? ` Current app: v${version}` : ""}{built ? ` (${info?.source === "release" ? "published" : "built"} ${built})` : ""}.
         </p>
       </div>
 

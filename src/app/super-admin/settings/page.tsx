@@ -4,6 +4,7 @@ import { CheckCircle2, XCircle, Server, Smartphone } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ChangePasswordForm } from "@/components/account/change-password-form";
+import { kitApkInfo } from "@/lib/devices/kit-apk";
 
 export const dynamic = "force-dynamic";
 
@@ -11,9 +12,10 @@ export const dynamic = "force-dynamic";
 // phone app version the Install App download currently ships. Only "set / not set" is shown for
 // secrets — never their values.
 export default async function SettingsPage() {
-  const kit = path.join(process.cwd(), "setup-kit");
-  const version = (await fs.readFile(path.join(kit, "version.txt"), "utf8").catch(() => "")).trim() || null;
-  const built = await fs.stat(path.join(kit, "MoneyMobile.apk")).then((s) => s.mtime.toLocaleString("en-LK", { timeZone: "Asia/Colombo" })).catch(() => null);
+  // What Install App hands out: newest published version (App Updates) or the bundled setup-kit file.
+  const kit = await kitApkInfo();
+  const version = kit?.version ?? null;
+  const built = kit?.builtAt ? kit.builtAt.toLocaleString("en-LK", { timeZone: "Asia/Colombo" }) : null;
   const firebaseFile = await fs.stat(path.join(process.cwd(), "firebase-service-account.json")).then(() => true).catch(() => false);
 
   const checks: { label: string; ok: boolean; hint: string }[] = [
@@ -47,7 +49,7 @@ export default async function SettingsPage() {
             <div className="flex items-center justify-between"><span className="text-muted-foreground">Version shops download</span>{version ? <Badge variant="default">v{version}</Badge> : <Badge variant="danger">not published</Badge>}</div>
             <div className="flex items-center justify-between"><span className="text-muted-foreground">App file built</span><span>{built ?? "—"}</span></div>
             <p className="pt-2 text-xs text-muted-foreground">
-              To ship a new app version: double-click <code>publish-app.command</code> in the Money mobile folder, then deploy this website.
+              To ship a new app version: upload and publish it on <b>App Updates</b>. Install App then hands it out automatically (no website deploy needed).
               Shops then get it from Install App (Windows and Mac) for new phones and for updating phones that are already set up.
             </p>
           </CardContent>

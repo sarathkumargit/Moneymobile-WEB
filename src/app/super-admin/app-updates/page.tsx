@@ -126,6 +126,7 @@ export default async function AppUpdatesPage() {
         </p>
       )}
       <p className="text-xs text-muted-foreground">How it works: upload → test in one shop and update a phone there → publish. Staff then press <b>Update</b> on each phone (or <b>Update all</b> in Device Mgmt). Nothing installs until staff press it.</p>
+      <p className="text-xs text-muted-foreground">The published version is also what <b>Install App</b> (USB and QR setup) hands out, so new phones get it too. A version in <b>Testing</b> is only offered as an online update in the test shop.</p>
     </CardContent></Card>
   </>);
 }

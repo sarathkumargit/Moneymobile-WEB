@@ -6,10 +6,12 @@ import { getSessionProfile } from "@/lib/auth/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildZip, type ZipEntry } from "@/lib/shared/zip";
 import { phoneServerOrigin } from "@/lib/devices/server-address";
+import { kitApk } from "@/lib/devices/kit-apk";
 
 // Downloads the phone setup kit for the signed-in user's shop, with config.txt already filled
 // in (shop id + secret, and the server address when the site is opened by its network address).
-// Files come from <project>/setup-kit — update MoneyMobile.apk there after each app build.
+// The app is the newest published version (Super Admin -> App Updates) or, if newer / nothing is
+// published, <project>/setup-kit/MoneyMobile.apk (see lib/devices/kit-apk.ts). Scripts come from setup-kit.
 const KIT_DIR = path.join(process.cwd(), "setup-kit");
 
 export async function GET(req: Request, { params }: { params: { os: string } }) {
@@ -40,15 +42,18 @@ export async function GET(req: Request, { params }: { params: { os: string } }) 
   const eol = os === "windows" ? "\r\n" : "\n";
   const toEol = (b: Buffer) => Buffer.from(b.toString("utf8").replace(/\r\n/g, "\n").replace(/\n/g, eol), "utf8");
 
-  let apk: Buffer, readme: Buffer;
+  let readme: Buffer;
+  const kit = await kitApk();
   try {
-    [apk, readme] = await Promise.all([fs.readFile(path.join(KIT_DIR, "MoneyMobile.apk")), fs.readFile(path.join(KIT_DIR, "README.txt"))]);
+    readme = await fs.readFile(path.join(KIT_DIR, "README.txt"));
   } catch {
-    return new Response("Setup kit files are missing on the server (setup-kit/MoneyMobile.apk).", { status: 500 });
+    return new Response("Setup kit files are missing on the server (setup-kit/README.txt).", { status: 500 });
   }
+  if (!kit) return new Response("No app file available: publish one on Super Admin -> App Updates (or add setup-kit/MoneyMobile.apk).", { status: 500 });
+  const apk = kit.buf;
 
   // One setup file per computer: it sets up a new phone OR just updates one that's already set up.
-  const version = (await fs.readFile(path.join(KIT_DIR, "version.txt"), "utf8").catch(() => "")).trim();
+  const version = kit.version ?? "";
   const folder = `MoneyMobile-Setup${version ? `-v${version}` : ""}-${os === "mac" ? "Mac" : "Windows"}`;
   const script = os === "mac" ? "setup-mac.command" : "setup-windows.bat";
   const setup = await fs.readFile(path.join(KIT_DIR, script));
