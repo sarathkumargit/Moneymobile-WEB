@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Store, UserCog, Users, Smartphone, Boxes, HardDrive, MonitorSmartphone,
   FileText, CreditCard, KeyRound, BarChart3, ScrollText, Settings, ShieldCheck,
-  UserSquare, Wallet, UserCircle, Download,
+  UserSquare, Wallet, UserCircle, Download, PackageOpen,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -34,6 +34,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Payments", href: "/super-admin/payments", icon: CreditCard },
     { label: "Temporary Unlocks", href: "/super-admin/unlocks", icon: KeyRound },
     { label: "Reports", href: "/super-admin/reports", icon: BarChart3 },
+    { label: "App Updates", href: "/super-admin/app-updates", icon: PackageOpen },
     { label: "Audit Logs", href: "/super-admin/audit", icon: ScrollText },
     { label: "Settings", href: "/super-admin/settings", icon: Settings },
   ],

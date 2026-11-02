@@ -3,6 +3,7 @@ import { ShieldCheck, Lock, Unlock, Smartphone, AlertTriangle } from "lucide-rea
 import { createClient } from "@/lib/supabase/server";
 import { NewEnrollmentForm } from "@/components/devices/new-enrollment-form";
 import { DeviceAdminButtons } from "@/components/devices/device-admin-buttons";
+import { ShopAppUpdatesCard } from "@/components/app-updates/shop-app-updates-card";
 import { issueCommand, resolveSecurityEvent, removeEnrollment } from "@/app/shop/device-management/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,8 @@ export default async function DeviceManagementPage() {
     <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
       Live device control requires the MoneyMobile app enrolled as Device Owner and pointed at this platform&apos;s API URL. Commands below are delivered to the phone on its next heartbeat.
     </div>
+
+    <ShopAppUpdatesCard />
 
     <NewEnrollmentForm devices={deviceOpts} agreements={agrOpts} />
 

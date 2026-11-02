@@ -14,6 +14,7 @@ import { DeviceAdminButtons } from "@/components/devices/device-admin-buttons";
 import { DueDateEditor } from "@/components/billing/due-date-editor";
 import { formatSL, formatSLDate, slToUtcIso } from "@/lib/shared/srilanka-time";
 import { DeviceCommandPanel, type CommandRow } from "@/components/devices/device-command-panel";
+import { AppUpdatePanel } from "@/components/app-updates/app-update-panel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -270,6 +271,7 @@ export async function CustomerDetail({ id, backHref }: { id: string; backHref: s
                 ⚠ Management not active (not Device Owner). Lock shows a screen but the phone can still be closed, uninstalled, or factory-reset. Provision as Device Owner via ADB to enforce kiosk, uninstall-block and reset-protection.
               </p>
             )}
+            {connected && e && <AppUpdatePanel enrollmentId={e.id} customerId={customer.id} />}
             {locByDevice[d.id] && <DeviceLocation loc={locByDevice[d.id]} />}
             {!connected && !released && <p className="mt-2 text-xs text-muted-foreground">Phone not connected yet — these actions queue and apply once it&apos;s enrolled and online (Wi-Fi is enough; no mobile data needed).</p>}
           </>

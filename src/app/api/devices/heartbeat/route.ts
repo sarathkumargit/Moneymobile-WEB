@@ -4,6 +4,7 @@ import { sha256, resolveAgreementId, buildAgreementStatus } from "@/lib/devices/
 import { raiseSimAlert } from "@/lib/devices/sim-alert";
 import { evaluateOverdueLock } from "@/lib/billing/overdue-lock";
 import { commandKey, signCommand, signAgreement, signLaterDeadlines } from "@/lib/devices/command-sign";
+import { appUpdateForHeartbeat } from "@/lib/devices/app-updates";
 
 export async function POST(req: Request) {
   const b = await req.json().catch(() => null);
@@ -126,7 +127,12 @@ export async function POST(req: Request) {
     if (error) console.warn("[heartbeat] fcm_token not saved (run migration 0017_fcm_token.sql):", error.message);
   };
 
-  const [, , command, agreement] = await Promise.all([updateStatus(), updateLocation(), takeCommand(), loadAgreement(), updateSim(), updateFcm()]);
+  // Online app update (app 1.10.0+): saves the build number and, only when staff pressed "Update" for this
+  // phone, hands it a signed offer. Isolated: returns null on any problem, so the check-in is unaffected.
+  const appVersionCode = Number.isInteger(b.app_version_code) ? (b.app_version_code as number) : null;
+  const offerUpdate = () => appUpdateForHeartbeat(admin, enr, appVersionCode);
+
+  const [, , command, agreement, , , appUpdate] = await Promise.all([updateStatus(), updateLocation(), takeCommand(), loadAgreement(), updateSim(), updateFcm(), offerUpdate()]);
   const signedAgreement = agreement
     ? {
         ...agreement,
@@ -140,5 +146,6 @@ export async function POST(req: Request) {
   // Optional: Google account(s) that must sign in after any factory reset / reflash (Android 11+).
   // Set FRP_ACCOUNT_IDS to a comma-separated list of numeric Google account IDs.
   const frp = (process.env.FRP_ACCOUNT_IDS || "").split(",").map((x) => x.trim()).filter(Boolean);
-  return Response.json({ success: true, command, agreement: signedAgreement, command_key: key, frp_account_ids: frp });
+  // app_update is only present when an update was requested; older apps ignore unknown fields.
+  return Response.json({ success: true, command, agreement: signedAgreement, command_key: key, frp_account_ids: frp, ...(appUpdate ? { app_update: appUpdate } : {}) });
 }

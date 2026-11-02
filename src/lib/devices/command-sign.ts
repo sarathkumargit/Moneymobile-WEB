@@ -36,3 +36,10 @@ export function signAgreement(enrollmentId: string, a: { id: string; locked: boo
   const k = commandKey(enrollmentId);
   return k ? mac(k, `agr|${enrollmentId}|${a.id}|${a.locked ? 1 : 0}|${a.overdue_lock_at ?? 0}|${a.server_time}`) : null;
 }
+
+// Signs an app-update offer (which file to install), so the phone only installs what this server chose.
+// The phone ALSO checks the file's SHA-256, package name, version and signing certificate before installing.
+export function signAppUpdate(enrollmentId: string, u: { request_id: string; version_code: number; sha256: string; size: number }): string | null {
+  const k = commandKey(enrollmentId);
+  return k ? mac(k, `upd|${enrollmentId}|${u.request_id}|${u.version_code}|${u.sha256}|${u.size}`) : null;
+}

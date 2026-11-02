@@ -86,3 +86,18 @@ auto-lock (`restriction_reason`), 0015 due date+time (`due_at`).
 - While a phone is locked its USB port is charge-only (no file transfer, no USB debugging, USB data signaling off on Android 12+ phones that support it). All of it is lifted on unlock/release so the shop can still update over USB.
 - At enrollment the app reports `bootloader_state` (locked / unlocked / unknown); migration `0019_bootloader_state.sql` stores it. Device Management flags "Bootloader unlocked — high risk" and "No check-in for N days".
 - Device Management has Delete phone / Reset for resale per phone, and Remove for stale enrollment rows.
+
+## Online app updates (app 1.10.0+, migration 0020)
+- Super admin → **App Updates**: upload the release APK (straight to the private `app-releases` bucket). The server reads
+  package + versionCode from inside the APK (`lib/devices/apk-info.ts`), rejects other apps and non-newer builds, stores SHA-256 + size.
+  Then: **Test** in one shop → **Publish** to all shops. **Withdraw** cancels every update that hasn't started installing.
+- Staff: Device Mgmt shows "App update available" (hidden otherwise) with **Update** / **Update all**; the customer page shows the
+  same per phone. Nothing installs unless staff press Update. One `device_app_updates` row per request.
+- Phone: the heartbeat response carries `app_update` ONLY for a requested update (`lib/devices/app-updates.ts`), signed with the
+  phone's command key (`signAppUpdate`). The app (`update/AppUpdater.kt`, `AppUpdateWorker.kt`) downloads in the background
+  (resumes; retries when back online), checks size + SHA-256 + package + version + signing certificate, then installs silently
+  (Device Owner). Progress → `/api/devices/app-update`. Android installs atomically: any failure = phone keeps its current app.
+  After the update `monitor/AppUpdatedReceiver` restarts management at once (lock screen, alarms, SIM watch, restrictions).
+- Phones older than 1.10.0 (build 19) have no updater: they need ONE update with the USB setup file. The page says so per phone.
+- Rules: raise `versionCode` for every release; sign with the SAME key (today: the Mac's ~/.android/debug.keystore — back it up);
+  never remove/rename an API field an older app still uses.
