@@ -3,7 +3,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sha256, resolveAgreementId, buildAgreementStatus } from "@/lib/devices/device-api";
 import { raiseSimAlert } from "@/lib/devices/sim-alert";
 import { evaluateOverdueLock } from "@/lib/billing/overdue-lock";
-import { commandKey, signCommand, signAgreement, signLaterDeadlines } from "@/lib/devices/command-sign";
+import { commandKey, signCommand, signAgreement, signLaterDeadlines, signFrpAccounts } from "@/lib/devices/command-sign";
+import { idsForShop } from "@/lib/devices/reset-protection";
 import { appUpdateForHeartbeat } from "@/lib/devices/app-updates";
 
 export async function POST(req: Request) {
@@ -132,7 +133,18 @@ export async function POST(req: Request) {
   const appVersionCode = Number.isInteger(b.app_version_code) ? (b.app_version_code as number) : null;
   const offerUpdate = () => appUpdateForHeartbeat(admin, enr, appVersionCode);
 
-  const [, , command, agreement, , , appUpdate] = await Promise.all([updateStatus(), updateLocation(), takeCommand(), loadAgreement(), updateSim(), updateFcm(), offerUpdate()]);
+  // Reset protection (app 1.10.1+ reports what it really holds). Best-effort, isolated: skips until migration 0021.
+  const saveFrpState = async () => {
+    const st = typeof b.frp_state === "string" ? b.frp_state.slice(0, 20) : null;
+    if (!st) return;
+    const accounts = typeof b.frp_accounts === "string" ? b.frp_accounts.slice(0, 200) : null;
+    const { error } = await admin.from("device_enrollments").update({ frp_state: st, frp_accounts: accounts, frp_checked_at: now }).eq("id", enr.id);
+    if (error) console.warn("[heartbeat] frp_state not saved (run migration 0021_reset_protection.sql):", error.message);
+  };
+  // The shop's own Google account ID(s) + optional platform backup (FRP_ACCOUNT_IDS).
+  const loadFrpIds = async () => { try { return await idsForShop(admin, enr.shop_id); } catch { return null; } };
+
+  const [, , command, agreement, , , appUpdate, , frpIds] = await Promise.all([updateStatus(), updateLocation(), takeCommand(), loadAgreement(), updateSim(), updateFcm(), offerUpdate(), saveFrpState(), loadFrpIds()]);
   const signedAgreement = agreement
     ? {
         ...agreement,
@@ -143,9 +155,10 @@ export async function POST(req: Request) {
   // Hand the signing key to a phone that has none yet (phones registered before signing existed).
   // Phones that already hold one never receive it again.
   const key = b.has_command_key === true ? null : commandKey(enr.id);
-  // Optional: Google account(s) that must sign in after any factory reset / reflash (Android 11+).
-  // Set FRP_ACCOUNT_IDS to a comma-separated list of numeric Google account IDs.
-  const frp = (process.env.FRP_ACCOUNT_IDS || "").split(",").map((x) => x.trim()).filter(Boolean);
+  // Reset protection: Google account(s) that must sign in after any factory reset (Android 11+) — the shop's
+  // own (Shop Settings) plus the optional platform backup FRP_ACCOUNT_IDS. If the list could not be loaded
+  // (database hiccup) the field is left out, so the phone keeps what it has instead of being told "none".
+  const frpFields = frpIds ? { frp_account_ids: frpIds, frp_sig: signFrpAccounts(enr.id, frpIds) } : {};
   // app_update is only present when an update was requested; older apps ignore unknown fields.
-  return Response.json({ success: true, command, agreement: signedAgreement, command_key: key, frp_account_ids: frp, ...(appUpdate ? { app_update: appUpdate } : {}) });
+  return Response.json({ success: true, command, agreement: signedAgreement, command_key: key, ...frpFields, ...(appUpdate ? { app_update: appUpdate } : {}) });
 }

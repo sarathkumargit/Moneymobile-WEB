@@ -43,3 +43,10 @@ export function signAppUpdate(enrollmentId: string, u: { request_id: string; ver
   const k = commandKey(enrollmentId);
   return k ? mac(k, `upd|${enrollmentId}|${u.request_id}|${u.version_code}|${u.sha256}|${u.size}`) : null;
 }
+
+// Signs the reset-protection account list, so a forged reply can never remove (or change) a phone's
+// reset protection. Phones from app 1.10.1 apply the list only when this signature checks out.
+export function signFrpAccounts(enrollmentId: string, ids: string[]): string | null {
+  const k = commandKey(enrollmentId);
+  return k ? mac(k, `frp|${enrollmentId}|${ids.join(",")}`) : null;
+}

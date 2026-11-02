@@ -12,6 +12,8 @@ export type ShopItem = {
   id: string; name: string; phone: string | null; address: string | null; status: "active" | "suspended";
   created: string; ownerId: string | null; ownerName: string | null; ownerUsername: string | null;
   licenseLimit: number | null; used: number;
+  /** Reset protection account set in Shop Settings (null = unknown, migration 0021 not run). */
+  frpSet?: boolean | null;
 };
 
 function Save() { const { pending } = useFormStatus(); return <Button type="submit" size="sm" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>; }
@@ -28,7 +30,9 @@ export function ShopRow({ shop }: { shop: ShopItem }) {
   return (
     <>
       <tr className="border-b last:border-0">
-        <td className="p-4"><div className="font-medium">{shop.name}</div>{shop.address && <div className="text-xs text-muted-foreground">{shop.address}</div>}</td>
+        <td className="p-4"><div className="font-medium">{shop.name}</div>{shop.address && <div className="text-xs text-muted-foreground">{shop.address}</div>}
+          {shop.frpSet === false && <Badge variant="danger" className="mt-1" title="The shop owner hasn't added a Google account in Shop Settings, so a button factory reset removes MoneyMobile from this shop's phones.">Reset protection not set up</Badge>}
+          {shop.frpSet === true && <Badge variant="success" className="mt-1">Reset protection set up</Badge>}</td>
         <td className="p-4"><div>{shop.ownerName ?? "—"}</div>{shop.ownerUsername && <div className="text-xs text-muted-foreground">@{shop.ownerUsername}</div>}</td>
         <td className="p-4 text-muted-foreground">{shop.phone ?? "—"}</td>
         <td className="p-4">

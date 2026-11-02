@@ -101,3 +101,14 @@ auto-lock (`restriction_reason`), 0015 due date+time (`due_at`).
 - Phones older than 1.10.0 (build 19) have no updater: they need ONE update with the USB setup file. The page says so per phone.
 - Rules: raise `versionCode` for every release; sign with the SAME key (today: the Mac's ~/.android/debug.keystore — back it up);
   never remove/rename an API field an older app still uses.
+
+## Reset protection per shop (migration 0021, app 1.10.1 reports status)
+- No app can block the Power + Volume recovery reset. Instead, Android's Factory Reset Protection makes a reset useless:
+  after ANY reset the phone only finishes setup with one of the shop's Google accounts.
+- Shop owner → Shop Settings → **Reset protection**: enters the shop's Google account ID(s) (number from OAuth Playground,
+  steps on the page). Stored in `shops.frp_account_ids`. `FRP_ACCOUNT_IDS` (env, optional) = platform backup added to all shops.
+- Heartbeat sends `frp_account_ids` + `frp_sig` (signed, `signFrpAccounts`). App 1.10.1 applies only a signed list and reports
+  `frp_state` (on/off/unsupported/failed) + `frp_accounts`; shown as a badge in Device Mgmt and on the customer page
+  (`lib/devices/reset-protection.ts`). Super admin Shops list shows which shops haven't set it up.
+- Release clears it on the phone (`DevicePolicyController.releaseFully`) before giving up Device Owner.
+- If the shop list can't be loaded (DB error) the heartbeat leaves the field out, so a phone never loses protection by accident.

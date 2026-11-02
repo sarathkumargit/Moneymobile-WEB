@@ -25,6 +25,10 @@ export default async function ShopsPage() {
   let res = await supabase.from("shops").select(cols + ",license_limit").order("created_at", { ascending: false });
   if (res.error) res = (await supabase.from("shops").select(cols).order("created_at", { ascending: false })) as typeof res; // migration 0018 not run yet
   const shops = (res.data ?? []) as unknown as ShopRow[];
+  // Reset protection (migration 0021): which shops have added their Google account. Unknown before the migration.
+  const frpRes = await supabase.from("shops").select("id,frp_account_ids");
+  const frpSet: Record<string, boolean> = {};
+  if (!frpRes.error) for (const r of (frpRes.data ?? []) as Array<{ id: string; frp_account_ids: string | null }>) frpSet[r.id] = !!r.frp_account_ids;
   const usedBy: Record<string, number> = {};
   await Promise.all(shops.map(async (sh) => {
     const { count } = await supabase.from("installment_agreements").select("*", { count: "exact", head: true }).eq("shop_id", sh.id);
@@ -33,7 +37,7 @@ export default async function ShopsPage() {
   const items: ShopItem[] = shops.map((s) => ({
     id: s.id, name: s.name, phone: s.phone, address: s.address, status: s.status, created: formatSLDate(s.created_at),
     ownerId: s.owner_id, ownerName: s.owner?.full_name ?? null, ownerUsername: s.owner?.username ?? null,
-    licenseLimit: s.license_limit ?? null, used: usedBy[s.id] ?? 0,
+    licenseLimit: s.license_limit ?? null, used: usedBy[s.id] ?? 0, frpSet: frpRes.error ? null : (frpSet[s.id] ?? false),
   }));
 
   return (
