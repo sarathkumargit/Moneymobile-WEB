@@ -9,6 +9,20 @@ type Admin = ReturnType<typeof import("@/lib/supabase/admin").createAdminClient>
 // the phone is locked. When a later payment clears every overdue installment, the phone is
 // unlocked again — but ONLY if the lock was an overdue lock. A SIM lock or a manual Lock
 // (restriction_reason 'sim' / 'manual') is never lifted automatically; staff must clear those.
+//
+// Unlock-code window: when the customer types a shop unlock code, the phone is open for
+// OFFLINE_UNLOCK_GRACE_MINUTES (agreement.unlock_grace_until). Until then the overdue lock is NOT
+// put back, even though the installment is still unpaid; after it, the next check-in locks again.
+// Only the overdue lock waits — a manual or SIM lock from staff still applies straight away.
+
+/** True while the 30-minute unlock-code window is open. False if the column doesn't exist yet
+ *  (migration 0018 not run), so the lock then works exactly as before. */
+async function unlockWindowOpen(admin: Admin, agreementId: string): Promise<boolean> {
+  const { data, error } = await admin.from("installment_agreements").select("unlock_grace_until").eq("id", agreementId).maybeSingle();
+  if (error || !data) return false;
+  const until = (data as { unlock_grace_until?: string | null }).unlock_grace_until;
+  return !!until && new Date(until).getTime() > Date.now();
+}
 
 export async function evaluateOverdueLock(admin: Admin, agreementId: string): Promise<"locked" | "unlocked" | "unchanged"> {
   const { data: a } = await admin
@@ -32,6 +46,8 @@ export async function evaluateOverdueLock(admin: Admin, agreementId: string): Pr
   const reason = (a as { restriction_reason?: string | null }).restriction_reason ?? null;
 
   if (overdue > 0 && !restricted) {
+    // The customer is inside the 30-minute window from a shop unlock code: leave the phone open.
+    if (await unlockWindowOpen(admin, agreementId)) return "unchanged";
     // Lock for overdue payment.
     await admin.from("installment_agreements").update({ restriction: "restricted", restriction_reason: "overdue" }).eq("id", agreementId);
     return "locked";

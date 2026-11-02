@@ -14,6 +14,12 @@ export const OFFLINE_STEP_SECONDS = 300;
 export const OFFLINE_VALID_MINUTES = 30;
 export const OFFLINE_MIN_APP_VERSION = "1.4.0";
 
+// After the customer types a code, the phone stays fully unlocked for this long. When it runs out
+// and the installment is still unpaid, the overdue lock comes back (server: evaluateOverdueLock;
+// phone: OfflineLockGuard, app v1.9.3+ — so it also re-locks with no internet).
+export const OFFLINE_UNLOCK_GRACE_MINUTES = 30;
+export const TIMED_UNLOCK_MIN_APP_VERSION = "1.9.3";
+
 export function offlineStep(atMs = Date.now()) {
   return Math.floor(atMs / 1000 / OFFLINE_STEP_SECONDS);
 }
@@ -25,11 +31,21 @@ export function offlineUnlockCode(deviceTokenHash: string, enrollmentId: string,
   return String(bin % 1_000_000).padStart(6, "0");
 }
 
-/** "1.3.0" < "1.4.0" — true when the installed app can check offline codes. */
-export function supportsOfflineCode(appVersion: string | null | undefined) {
+/** True when appVersion >= min ("1.9.2" < "1.9.3"). Unknown version = false. */
+export function appVersionAtLeast(appVersion: string | null | undefined, min: string) {
   if (!appVersion) return false;
   const a = appVersion.split(/[^0-9]+/).filter(Boolean).map(Number);
-  const b = OFFLINE_MIN_APP_VERSION.split(".").map(Number);
+  const b = min.split(".").map(Number);
   for (let i = 0; i < 3; i++) { const x = a[i] ?? 0, y = b[i] ?? 0; if (x !== y) return x > y; }
   return true;
+}
+
+/** "1.3.0" < "1.4.0" — true when the installed app can check offline codes. */
+export function supportsOfflineCode(appVersion: string | null | undefined) {
+  return appVersionAtLeast(appVersion, OFFLINE_MIN_APP_VERSION);
+}
+
+/** True when the app re-locks by itself when the 30-minute window ends, even with no internet. */
+export function supportsTimedUnlock(appVersion: string | null | undefined) {
+  return appVersionAtLeast(appVersion, TIMED_UNLOCK_MIN_APP_VERSION);
 }

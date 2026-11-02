@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sha256, resolveAgreementId } from "@/lib/devices/device-api";
 import { raiseSimAlert } from "@/lib/devices/sim-alert";
+import { OFFLINE_UNLOCK_GRACE_MINUTES } from "@/lib/devices/offline-unlock";
 
 export async function POST(req: Request) {
   const b = await req.json().catch(() => null);
@@ -41,16 +42,38 @@ export async function POST(req: Request) {
       status: "resolved",
     });
   } else {
+    // Unlock code: the phone is open for 30 minutes counted from when the customer TYPED the code
+    // (detectedAtMs), not from when it was reported — a phone that was offline reports late, and
+    // must not get a fresh 30 minutes for an old unlock.
+    const isCode = type === "OFFLINE_UNLOCK_CODE";
+    const nowMs = Date.now();
+    const graceUntil = Math.min(detectedAtMs ?? nowMs, nowMs) + OFFLINE_UNLOCK_GRACE_MINUTES * 60_000;
+    const graceOpen = graceUntil > nowMs;
+    const clock = (ms: number) => new Date(ms).toLocaleTimeString("en-LK", { timeZone: "Asia/Colombo", hour: "numeric", minute: "2-digit" });
+    const details = isCode
+      ? `${b.details ?? "Unlocked with a shop unlock code"} — ${graceOpen ? `open until ${clock(graceUntil)}, then locks again if still unpaid` : `reported late; the ${OFFLINE_UNLOCK_GRACE_MINUTES}-minute window had already ended`}`
+      : b.details ?? null;
     await admin.from("device_security_events").insert({
       shop_id: enr.shop_id, enrollment_id: enr.id, device_id: enr.device_id,
-      event_type: type, details: b.details ?? null, status: type === "OFFLINE_UNLOCK_CODE" ? "resolved" : "new",
+      event_type: type, details, status: isCode ? "resolved" : "new",
     });
     // The customer unlocked the phone with a shop-issued offline code. Clear the restriction so the
     // next heartbeat's reconcile keeps it unlocked instead of re-locking. Generating the code no
     // longer unlocks remotely, so THIS is the point the server learns the phone is now unlocked.
-    if (type === "OFFLINE_UNLOCK_CODE") {
+    if (isCode) {
       const agreementId = enr.agreement_id ?? await resolveAgreementId(admin, enr);
-      if (agreementId) await admin.from("installment_agreements").update({ restriction: "active", restriction_reason: null }).eq("id", agreementId);
+      if (agreementId) {
+        await admin.from("installment_agreements").update({ restriction: "active", restriction_reason: null }).eq("id", agreementId);
+        // Hold off the overdue lock until the window ends (see lib/billing/overdue-lock.ts). Separate
+        // step so a database without the column (migration 0018 not run) still unlocks as before.
+        // Never shortens a window that is already open.
+        if (graceOpen) {
+          const iso = new Date(graceUntil).toISOString();
+          const { error } = await admin.from("installment_agreements").update({ unlock_grace_until: iso })
+            .eq("id", agreementId).or(`unlock_grace_until.is.null,unlock_grace_until.lt.${iso}`);
+          if (error) console.warn("[security-event] unlock window not saved (run migration 0018_unlock_grace.sql):", error.message);
+        }
+      }
     }
   }
   return Response.json({ success: true, data: null, message: "recorded" });

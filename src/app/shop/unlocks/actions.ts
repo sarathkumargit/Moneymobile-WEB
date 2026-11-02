@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveAgreementId } from "@/lib/devices/device-api";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { queueCommand, type EnrRef } from "@/lib/devices/device-commands";
-import { offlineUnlockCode, supportsOfflineCode, OFFLINE_VALID_MINUTES, OFFLINE_MIN_APP_VERSION } from "@/lib/devices/offline-unlock";
+import { offlineUnlockCode, supportsOfflineCode, supportsTimedUnlock, OFFLINE_VALID_MINUTES, OFFLINE_MIN_APP_VERSION, OFFLINE_UNLOCK_GRACE_MINUTES } from "@/lib/devices/offline-unlock";
 export type ActionState = { error?: string; success?: string; code?: string; expiresAt?: number; note?: string };
 
 const canOperate = (role: string) => role === "shop_admin" || role === "employee";
@@ -77,12 +77,15 @@ export async function generateUnlockKey(_p: ActionState, fd: FormData): Promise<
   revalidatePath("/shop/unlocks");
   if (enr.customer_id) { revalidatePath(`/shop/customers/${enr.customer_id}`); revalidatePath(`/employee/customers/${enr.customer_id}`); }
 
+  const appVersion = (enr as { app_version?: string | null }).app_version;
   const note = old
-    ? ` ⚠ This phone runs app v${(enr as { app_version?: string | null }).app_version ?? "?"} — the code box needs v${OFFLINE_MIN_APP_VERSION} or newer. Until it's updated, the phone unlocks only when it goes online.`
-    : "";
+    ? ` ⚠ This phone runs app v${appVersion ?? "?"} — the code box needs v${OFFLINE_MIN_APP_VERSION} or newer. Until it's updated, the phone unlocks only when it goes online.`
+    : !supportsTimedUnlock(appVersion)
+      ? ` This phone runs app v${appVersion ?? "?"}: if it stays offline it won't lock again by itself — it locks the next time it goes online after the ${OFFLINE_UNLOCK_GRACE_MINUTES} minutes.`
+      : "";
   if (queuedErr) return { error: `Code ${code} created, but: ${queuedErr}` };
   return {
     code, expiresAt: Date.now() + OFFLINE_VALID_MINUTES * 60 * 1000, note: note.trim() || undefined,
-    success: `Unlock code: ${code} — tell the customer to tap "Enter unlock code" on the locked phone. Works without internet for ${OFFLINE_VALID_MINUTES} minutes.${note}`,
+    success: `Unlock code: ${code} — the customer taps "Enter unlock code" on the locked phone and types it within ${OFFLINE_VALID_MINUTES} minutes (works without internet). The phone then stays fully unlocked for ${OFFLINE_UNLOCK_GRACE_MINUTES} minutes and locks again if the payment still isn't recorded.${note}`,
   };
 }
