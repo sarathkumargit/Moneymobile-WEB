@@ -4,6 +4,11 @@ const nextConfig = {
   // Smaller responses and no version fingerprint in headers.
   poweredByHeader: false,
   compress: true,
+  // Serve images as AVIF/WebP sized to each screen, and let browsers/CDN cache them for a year.
+  images: {
+    formats: ["image/avif", "image/webp"],
+    minimumCacheTTL: 31536000,
+  },
   // Strip console.log from production bundles (keeps error/warn for server-side migration notices).
   compiler: {
     removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
