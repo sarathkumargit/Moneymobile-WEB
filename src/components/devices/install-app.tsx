@@ -64,8 +64,19 @@ export async function InstallApp() {
           <ul className="mt-1 list-disc space-y-1 pl-5">
             <li>The phone ignores any lock, unlock or release that the shop server has not signed.</li>
             <li>With two SIMs inserted at setup, removing either one locks the phone.</li>
-            <li>Customers can no longer clear the app&apos;s data, add users or install apps from unknown sources.</li>
+            <li>Customers can no longer clear the app&apos;s data or add users.</li>
             <li>The phone registers itself again if its record was deleted. Run the setup file to update older phones.</li>
+          </ul>
+        </div>
+      )}
+
+      {atLeast(version, "1.10.5") && (
+        <div className="rounded-lg border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300">
+          <p className="font-medium">New in v1.10.5: customers can install APKs and create a Gmail account</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            <li>Customers can now download and install APK files directly (e.g. via Chrome).</li>
+            <li>Gmail account creation works via Chrome (go to <b>accounts.google.com</b>) or through the Play Store sign-in screen.</li>
+            <li>Factory-reset protection remains active — a physical reset still requires the shop account to unlock.</li>
           </ul>
         </div>
       )}
