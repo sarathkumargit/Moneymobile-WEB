@@ -83,11 +83,22 @@ export async function InstallApp() {
 
       {atLeast(version, "1.10.6") && (
         <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900 dark:border-green-800 dark:bg-green-950 dark:text-green-100">
-          <p className="font-medium">New in v1.10.6: full customer access while unlocked</p>
+          <p className="font-medium">New in v1.10.6: open Google account access</p>
           <ul className="mt-1 list-disc space-y-1 pl-5">
-            <li>No restrictions while the account is active — customers can add Gmail accounts, switch users, install and uninstall any app, and factory reset the phone.</li>
-            <li>Factory-reset protection (EFRP) is the only security layer: after any reset the phone requires the shop&apos;s Google account to set up again.</li>
-            <li>The overdue lock screen still activates automatically when a payment is missed.</li>
+            <li>Customers can freely add or remove Gmail accounts — no restrictions on account modification.</li>
+            <li>Apps can be installed and uninstalled freely while the account is active.</li>
+          </ul>
+        </div>
+      )}
+
+      {atLeast(version, "1.10.7") && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-100">
+          <p className="font-medium">New in v1.10.7: factory reset blocked in Settings</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            <li>Factory reset via Settings is disabled — customers cannot wipe the phone from the Settings menu.</li>
+            <li>Hardware factory reset (power + volume buttons) still works but requires the shop&apos;s Google account to set up the phone again (EFRP).</li>
+            <li>Google account access remains fully open — customers can add or remove Gmail accounts as before.</li>
+            <li>The overdue lock screen activates automatically when a payment is missed, even without internet.</li>
           </ul>
         </div>
       )}
