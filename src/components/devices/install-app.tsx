@@ -53,6 +53,16 @@ export async function InstallApp() {
             <li>Plug the phone in, tap <b>Allow</b> on the phone, run the setup file and wait for <b>DONE</b>. Then assign the phone to a customer (find it by its IMEI).</li>
           </ol>
           <p className="mt-3 text-xs text-muted-foreground">Already set-up phone? Just plug it in and run the same file — no preparation needed.</p>
+          <details className="mt-3 rounded-lg border p-3 text-sm">
+            <summary className="cursor-pointer font-medium">Setup failing on a particular brand? Extra steps</summary>
+            <ul className="mt-2 list-disc space-y-1.5 pl-5">
+              <li><b>Every brand:</b> Settings → Accounts must be empty — remove Google, Samsung, Xiaomi and any other account before running the setup file.</li>
+              <li><b>Xiaomi / Redmi / POCO:</b> in Developer options also turn on <i>USB debugging (Security settings)</i> and <i>Install via USB</i>. Xiaomi asks you to sign in to a Mi account to turn these on — sign out of it again before running the setup file.</li>
+              <li><b>Oppo / Realme / OnePlus:</b> if Developer options has <i>Disable permission monitoring</i>, turn it on.</li>
+              <li><b>Any brand:</b> if the phone shows an &quot;Install via USB?&quot; prompt during setup, tap <i>Install</i>.</li>
+              <li><b>QR code:</b> works best on Android 10 or newer. If QR setup shows &quot;Something went wrong&quot;, reset the phone and use the USB setup file — and check <i>Device Mgmt → Setup reports</i> for the reason.</li>
+            </ul>
+          </details>
         </CardContent>
       </Card>
 

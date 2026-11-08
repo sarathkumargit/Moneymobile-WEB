@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NewEnrollmentForm } from "@/components/devices/new-enrollment-form";
 import { DeviceAdminButtons } from "@/components/devices/device-admin-buttons";
 import { ShopAppUpdatesCard } from "@/components/app-updates/shop-app-updates-card";
+import { SetupReportsCard } from "@/components/devices/setup-reports-card";
 import { loadFrpBadges, FrpBadgeView } from "@/components/devices/reset-protection-status";
 import { issueCommand, resolveSecurityEvent, removeEnrollment } from "@/app/shop/device-management/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +44,8 @@ export default async function DeviceManagementPage() {
     </div>
 
     <ShopAppUpdatesCard />
+
+    <SetupReportsCard />
 
     <NewEnrollmentForm devices={deviceOpts} agreements={agrOpts} />
 
