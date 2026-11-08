@@ -7,17 +7,6 @@ import { SetupQrCard } from "@/components/devices/setup-qr-card";
 // works out what to do itself — a new / factory-reset phone gets the full setup, a phone that's
 // already set up just gets the newer app (customer + lock status unchanged).
 // The kit is generated for the signed-in user's shop by /api/setup-kit/[os].
-// "1.6.0" >= "1.6.0"? Compares dotted numbers; anything unreadable counts as older.
-function atLeast(v: string | null, min: string): boolean {
-  if (!v) return false;
-  const a = v.split(".").map(Number), b = min.split(".").map(Number);
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    const x = a[i] || 0, y = b[i] || 0;
-    if (Number.isNaN(x)) return false;
-    if (x !== y) return x > y;
-  }
-  return true;
-}
 
 export async function InstallApp() {
   // Newest published version (App Updates) or the bundled setup-kit file, whichever is newer.
@@ -47,62 +36,6 @@ export async function InstallApp() {
           {version ? ` Current app: v${version}` : ""}{built ? ` (${info?.source === "release" ? "published" : "built"} ${built})` : ""}.
         </p>
       </div>
-
-      {atLeast(version, "1.6.0") && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
-          <p className="font-medium">New in v1.6: phones lock themselves on the due date — even offline</p>
-          <p className="mt-1">
-            Once the due date + grace days pass, the phone locks with no internet, even in airplane mode. The customer sees the lock date in the app
-            and gets reminders 2 days and 1 day before. The phone only needs to have been online once since the due date was set or changed.
-            Phones already set up get this by running the same setup file.
-          </p>
-        </div>
-      )}
-
-      {atLeast(version, "1.9.0") && (
-        <div className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-300">
-          <p className="font-medium">New in v1.9: stronger protection and two-SIM phones</p>
-          <ul className="mt-1 list-disc space-y-1 pl-5">
-            <li>The phone ignores any lock, unlock or release that the shop server has not signed.</li>
-            <li>With two SIMs inserted at setup, removing either one locks the phone.</li>
-            <li>Customers can no longer clear the app&apos;s data or add users.</li>
-            <li>The phone registers itself again if its record was deleted. Run the setup file to update older phones.</li>
-          </ul>
-        </div>
-      )}
-
-      {atLeast(version, "1.10.5") && (
-        <div className="rounded-lg border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300">
-          <p className="font-medium">New in v1.10.5: customers can install APKs and create a Gmail account</p>
-          <ul className="mt-1 list-disc space-y-1 pl-5">
-            <li>Customers can now download and install APK files directly (e.g. via Chrome).</li>
-            <li>Gmail account creation works via Chrome (go to <b>accounts.google.com</b>) or through the Play Store sign-in screen.</li>
-            <li>Factory-reset protection remains active — a physical reset still requires the shop account to unlock.</li>
-          </ul>
-        </div>
-      )}
-
-      {atLeast(version, "1.10.6") && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900 dark:border-green-800 dark:bg-green-950 dark:text-green-100">
-          <p className="font-medium">New in v1.10.6: open Google account access</p>
-          <ul className="mt-1 list-disc space-y-1 pl-5">
-            <li>Customers can freely add or remove Gmail accounts — no restrictions on account modification.</li>
-            <li>Apps can be installed and uninstalled freely while the account is active.</li>
-          </ul>
-        </div>
-      )}
-
-      {atLeast(version, "1.10.7") && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-100">
-          <p className="font-medium">New in v1.10.7: factory reset blocked in Settings</p>
-          <ul className="mt-1 list-disc space-y-1 pl-5">
-            <li>Factory reset via Settings is disabled — customers cannot wipe the phone from the Settings menu.</li>
-            <li>Hardware factory reset (power + volume buttons) still works but requires the shop&apos;s Google account to set up the phone again (EFRP).</li>
-            <li>Google account access remains fully open — customers can add or remove Gmail accounts as before.</li>
-            <li>The overdue lock screen activates automatically when a payment is missed, even without internet.</li>
-          </ul>
-        </div>
-      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Kit os="windows" title="Windows" icon={MonitorSmartphone} file="setup-windows.bat" run={'If "Windows protected your PC" appears: More info → Run anyway.'} />
