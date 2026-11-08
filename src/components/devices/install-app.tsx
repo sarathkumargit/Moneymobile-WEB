@@ -1,6 +1,7 @@
 import { kitApkInfo } from "@/lib/devices/kit-apk";
 import { Apple, Download, MonitorSmartphone, Smartphone, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SetupQrCard } from "@/components/devices/setup-qr-card";
 
 // "Install App" for shop admins and employees: ONE download per computer. The setup file inside
 // works out what to do itself — a new / factory-reset phone gets the full setup, a phone that's
@@ -121,6 +122,8 @@ export async function InstallApp() {
           <p className="mt-3 text-xs text-muted-foreground">Already set-up phone? Just plug it in and run the same file — no preparation needed.</p>
         </CardContent>
       </Card>
+
+      <SetupQrCard />
 
       <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
         <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
