@@ -84,3 +84,48 @@ export async function kitApk(): Promise<KitApk | null> {
   }
   return b?.buf ? { buf: b.buf, ...b.info } : null;
 }
+
+/**
+ * Where a phone doing QR setup downloads the app, plus the checksum the QR must carry — chosen ONCE, so the
+ * file the phone downloads is always exactly the file the checksum was made from.
+ *
+ * Why: the old QR pointed at /api/setup-kit/apk, a server function that picks "newest published, else bundled"
+ * on every request and pulls the published file from storage first. Measured on the live site it took over
+ * two minutes before the first byte, and if storage was slow on one request but not the other, the QR's
+ * checksum and the downloaded file came from DIFFERENT files — Android then refuses to install it.
+ *
+ *  - Published release: a signed link straight to the file in Supabase Storage (served by its CDN, fast),
+ *    checksum = the SHA-256 the server stored at upload. No download through our function at all.
+ *  - Bundled file: /api/setup-kit/apk?src=bundled, which always serves the bundled file (never a release).
+ */
+export type KitDownload = { url: string; checksum: string; size: number; built: Date | null; version: string | null; versionCode: number | null; source: "release" | "bundled" };
+
+const hexToBase64Url = (hex: string) => Buffer.from(hex, "hex").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const SIGNED_URL_SECONDS = 24 * 3600; // a QR is printed/shown in the shop and used the same day
+
+export async function kitDownload(origin: string): Promise<KitDownload | null> {
+  const [r, b] = await Promise.all([latestPublished(), bundled(true)]);
+  if (newer(r, b?.info) && r && /^[0-9a-f]{64}$/i.test(r.sha256)) {
+    try {
+      const sb = createAdminClient();
+      const [{ data: signed }, { data: row }] = await Promise.all([
+        sb.storage.from(APP_BUCKET).createSignedUrl(r.storage_path, SIGNED_URL_SECONDS),
+        sb.from("app_releases").select("size_bytes").eq("id", r.id).maybeSingle(),
+      ]);
+      if (signed?.signedUrl) {
+        return { url: signed.signedUrl, checksum: hexToBase64Url(r.sha256), size: Number((row as { size_bytes?: number } | null)?.size_bytes ?? 0), built: r.published_at ? new Date(r.published_at) : null, version: r.version_name ?? String(r.version_code), versionCode: r.version_code, source: "release" };
+      }
+    } catch (e) {
+      console.warn("[setup-kit] signed link failed, using the bundled file:", (e as Error).message);
+    }
+  }
+  if (!b?.buf) return null;
+  const checksum = createHash("sha256").update(b.buf).digest("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return { url: `${origin}/api/setup-kit/apk?src=bundled&v=${b.info.versionCode ?? "0"}`, checksum, size: b.buf.length, built: b.info.builtAt, version: b.info.version, versionCode: b.info.versionCode, source: "bundled" };
+}
+
+/** Only the bundled setup-kit file (for QR links that were made from it). */
+export async function bundledApk(): Promise<KitApk | null> {
+  const b = await bundled(true);
+  return b?.buf ? { buf: b.buf, ...b.info } : null;
+}
