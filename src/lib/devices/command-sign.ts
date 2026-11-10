@@ -50,3 +50,16 @@ export function signFrpAccounts(enrollmentId: string, ids: string[]): string | n
   const k = commandKey(enrollmentId);
   return k ? mac(k, `frp|${enrollmentId}|${ids.join(",")}`) : null;
 }
+
+// Signs the USB policy (app 1.11.0+): strict = USB debugging + file transfer blocked even while unlocked.
+// `until` = end of a staff "USB service" window (epoch ms, 0 = none). A forged reply can't relax it.
+export function signUsbPolicy(enrollmentId: string, p: { strict: boolean; until: number }): string | null {
+  const k = commandKey(enrollmentId);
+  return k ? mac(k, `usb|${enrollmentId}|${p.strict ? 1 : 0}|${p.until}`) : null;
+}
+
+// Signs the customer notice shown after a high-risk tamper alert (app 1.11.0+).
+export function signNotice(enrollmentId: string, n: { id: string; text: string }): string | null {
+  const k = commandKey(enrollmentId);
+  return k ? mac(k, `ntc|${enrollmentId}|${n.id}|${n.text}`) : null;
+}

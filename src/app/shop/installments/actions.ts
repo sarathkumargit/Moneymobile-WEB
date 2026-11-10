@@ -8,6 +8,7 @@ import { calcInstallment, type InterestType } from "@/lib/billing/installment";
 import { getLicense, LICENSE_MSG } from "@/lib/admin/license";
 import { setFlash } from "@/lib/shared/flash";
 import { slToUtcIso, slDate } from "@/lib/shared/srilanka-time";
+import { riskForDevice } from "@/lib/devices/model-risk";
 export type ActionState = { error?: string; success?: string };
 
 function addMonths(d: Date, n: number) { const x = new Date(d); x.setMonth(x.getMonth() + n); return x; }
@@ -38,6 +39,21 @@ export async function createAgreement(_p: ActionState, fd: FormData): Promise<Ac
 
   const supabase = createClient();
   const device_id = String(fd.get("device_id") || "").trim() || null;
+
+  // Phone-model risk (Unlock Tests page). "Not allowed" = the shop's own tests showed an unlock tool beats
+  // this model: only the shop owner may still finance it, with a written reason that goes to the audit log.
+  let riskOverride: { level: string; reason: string; brand: string | null; model: string | null } | null = null;
+  let riskLevel: string | null = null;
+  if (device_id) {
+    const r = await riskForDevice(supabase, s.profile.shop_id, device_id);
+    riskLevel = r.risk.level;
+    if (r.risk.level === "not_allowed") {
+      if (s.profile.role !== "shop_admin") return { error: `${[r.brand, r.model].filter(Boolean).join(" ")} is marked "Not allowed" on Unlock Tests (an unlock tool beat it). Only the shop owner can create this agreement.` };
+      const reason = String(fd.get("risk_override_reason") || "").trim().slice(0, 500);
+      if (reason.length < 10) return { error: "This phone model is \"Not allowed\". Write why you are financing it anyway (at least 10 characters)." };
+      riskOverride = { level: r.risk.level, reason, brand: r.brand, model: r.model };
+    }
+  }
   // The form gives a Sri Lanka wall-clock value ("2026-11-26T17:00"); convert to the UTC instant.
   const firstDueRaw = String(fd.get("first_due_date") || "").trim();
   const firstIso = firstDueRaw ? slToUtcIso(firstDueRaw) : null;
@@ -88,7 +104,10 @@ export async function createAgreement(_p: ActionState, fd: FormData): Promise<Ac
       if (linkErr) return { error: `Agreement created, but linking the phone failed: ${linkErr.message}` };
     }
   }
-  await supabase.from("audit_logs").insert({ shop_id: s.profile.shop_id, actor_id: s.user.id, action: "create_agreement", entity: "installment_agreements", entity_id: agr.id, details: { selling, months, monthly: calc.monthly, totalRepayment: calc.totalRepayment } });
+  await supabase.from("audit_logs").insert({ shop_id: s.profile.shop_id, actor_id: s.user.id, action: "create_agreement", entity: "installment_agreements", entity_id: agr.id, details: { selling, months, monthly: calc.monthly, totalRepayment: calc.totalRepayment, model_risk: riskLevel } });
+  if (riskOverride) {
+    await supabase.from("audit_logs").insert({ shop_id: s.profile.shop_id, actor_id: s.user.id, action: "agreement_model_risk_override", entity: "installment_agreements", entity_id: agr.id, details: riskOverride });
+  }
 
   revalidatePath("/shop/installments"); revalidatePath("/shop"); revalidatePath("/shop/payments"); revalidatePath("/employee/installments");
   return { success: `Agreement created — ${months} × ${calc.monthly.toLocaleString()} (total ${calc.totalRepayment.toLocaleString()}). Schedule generated.` };

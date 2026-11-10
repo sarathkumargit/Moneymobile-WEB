@@ -28,3 +28,8 @@ setup-kit/config.txt
 .removed-*/
 .unfinished/
 .unfinished
+
+# temporary snapshot used by Claude for build checks
+.mm-build-snapshot.tgz
+.mm-update.tgz
+.backup-*/

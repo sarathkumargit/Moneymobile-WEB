@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
-import { Plus, CheckCircle2, AlertCircle, X } from "lucide-react";
+import { Plus, CheckCircle2, AlertCircle, X, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,9 +13,18 @@ import { formatCurrency } from "@/lib/shared/utils";
 const initial: ActionState = {};
 const DEFAULT_SOFTWARE_FEE = "3500";
 const selectCls = "flex h-10 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-function Sub() { const { pending } = useFormStatus(); return <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Create agreement"}</Button>; }
+function Sub({ blocked }: { blocked?: boolean }) { const { pending } = useFormStatus(); return <Button type="submit" disabled={pending || blocked}>{pending ? "Saving…" : "Create agreement"}</Button>; }
 
-export function AgreementCalculatorForm({ customers = [], devices, fixedCustomer }: { customers?: { id: string; full_name: string }[]; devices: { id: string; label: string }[]; fixedCustomer?: { id: string; full_name: string } }) {
+/** Phone-model risk from the Unlock Tests page (see lib/devices/model-risk.ts). */
+export type DeviceRiskInfo = { level: "safe" | "risky" | "untested" | "not_allowed"; label: string; hint: string; reasons: string[]; minDepositPct: number | null; maxMonths: number | null };
+const riskTone: Record<DeviceRiskInfo["level"], string> = {
+  safe: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  risky: "border-amber-200 bg-amber-50 text-amber-800",
+  untested: "border-slate-200 bg-slate-50 text-slate-700",
+  not_allowed: "border-red-200 bg-red-50 text-red-800",
+};
+
+export function AgreementCalculatorForm({ customers = [], devices, fixedCustomer, canOverrideRisk = false }: { customers?: { id: string; full_name: string }[]; devices: { id: string; label: string; risk?: DeviceRiskInfo }[]; fixedCustomer?: { id: string; full_name: string }; canOverrideRisk?: boolean }) {
   const [open, setOpen] = useState(false);
   const [state, action] = useFormState(createAgreement, initial);
   const [selling, setSelling] = useState("");
@@ -23,6 +32,10 @@ export function AgreementCalculatorForm({ customers = [], devices, fixedCustomer
   const [rate, setRate] = useState("0");
   const [months, setMonths] = useState("12");
   const [softwareFee, setSoftwareFee] = useState(DEFAULT_SOFTWARE_FEE);
+  const [deviceId, setDeviceId] = useState("");
+  const risk = devices.find((d) => d.id === deviceId)?.risk;
+  const blocked = risk?.level === "not_allowed" && !canOverrideRisk;
+  const depositPct = Number(selling) > 0 ? Math.round(((Number(deposit) || 0) / Number(selling)) * 100) : 0;
 
   // Always flat monthly interest; software fee is a fixed add-on with no interest.
   const r = useMemo(() => calcInstallment({
@@ -50,7 +63,7 @@ export function AgreementCalculatorForm({ customers = [], devices, fixedCustomer
             ) : (
               <div className="space-y-1.5"><Label htmlFor="customer_id">Customer *</Label><select id="customer_id" name="customer_id" className={selectCls} required><option value="">— select —</option>{customers.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}</select></div>
             )}
-            <div className="space-y-1.5"><Label htmlFor="device_id">Device</Label><select id="device_id" name="device_id" className={selectCls}><option value="">— none —</option>{devices.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}</select></div>
+            <div className="space-y-1.5"><Label htmlFor="device_id">Device</Label><select id="device_id" name="device_id" className={selectCls} value={deviceId} onChange={(e) => setDeviceId(e.target.value)}><option value="">— none —</option>{devices.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}</select></div>
             <div className="space-y-1.5"><Label htmlFor="total_price">Phone price (Rs) *</Label><Input id="total_price" name="total_price" type="number" step="0.01" value={selling} onChange={(e) => setSelling(e.target.value)} required /></div>
             <div className="space-y-1.5"><Label htmlFor="additional_charges">Software fee (Rs)</Label><Input id="additional_charges" name="additional_charges" type="number" step="0.01" value={softwareFee} onChange={(e) => setSoftwareFee(e.target.value)} /></div>
             <div className="space-y-1.5"><Label htmlFor="deposit">Down payment (Rs)</Label><Input id="deposit" name="deposit" type="number" step="0.01" value={deposit} onChange={(e) => setDeposit(e.target.value)} /></div>
@@ -59,6 +72,21 @@ export function AgreementCalculatorForm({ customers = [], devices, fixedCustomer
             <div className="space-y-1.5"><Label htmlFor="first_due_date">First due date &amp; time</Label><Input id="first_due_date" name="first_due_date" type="datetime-local" /><p className="text-xs text-muted-foreground">Sri Lanka time — the phone locks when this moment passes (plus grace)</p></div>
             <div className="space-y-1.5"><Label htmlFor="grace_days">Grace days</Label><Input id="grace_days" name="grace_days" type="number" defaultValue="3" min="0" /><p className="text-xs text-muted-foreground">Days after a due date before the phone auto-locks</p></div>
           </div>
+
+          {risk && (
+            <div className={`space-y-2 rounded-xl border px-4 py-3 text-sm ${riskTone[risk.level]}`}>
+              <div className="flex items-center gap-2 font-medium"><ShieldAlert className="h-4 w-4 shrink-0" /> Phone model risk: {risk.label}</div>
+              <p>{risk.hint}</p>
+              {risk.reasons.length > 0 && <ul className="list-disc pl-5 text-xs">{risk.reasons.map((r) => <li key={r}>{r}</li>)}</ul>}
+              {risk.minDepositPct !== null && Number(selling) > 0 && depositPct < risk.minDepositPct && <p className="text-xs font-medium">Suggested down payment for this model: at least {risk.minDepositPct}% (now {depositPct}%).</p>}
+              {risk.maxMonths !== null && Number(months) > risk.maxMonths && <p className="text-xs font-medium">Suggested term for this model: up to {risk.maxMonths} months.</p>}
+              {risk.level === "not_allowed" && (canOverrideRisk ? (
+                <div className="space-y-1.5 pt-1"><Label htmlFor="risk_override_reason">Owner override — why sell this model on installments anyway? *</Label>
+                  <textarea id="risk_override_reason" name="risk_override_reason" required minLength={10} maxLength={500} rows={2} className="flex w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground" placeholder="e.g. 60% down payment and a guarantor with a fixed job" />
+                  <p className="text-xs">Saved in the audit log with your name.</p></div>
+              ) : <p className="text-xs font-medium">Only the shop owner can create an agreement for this model.</p>)}
+            </div>
+          )}
 
           {/* compact total — not a calculator, just the resulting figures */}
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-muted/40 px-4 py-3">
@@ -74,7 +102,7 @@ export function AgreementCalculatorForm({ customers = [], devices, fixedCustomer
             </div>
           </div>
 
-          <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setOpen(false)}>Close</Button><Sub /></div>
+          <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setOpen(false)}>Close</Button><Sub blocked={blocked} /></div>
         </form>)}
       </CardContent>
     </Card>

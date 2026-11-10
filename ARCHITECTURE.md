@@ -112,3 +112,29 @@ auto-lock (`restriction_reason`), 0015 due date+time (`due_at`).
   (`lib/devices/reset-protection.ts`). Super admin Shops list shows which shops haven't set it up.
 - Release clears it on the phone (`DevicePolicyController.releaseFully`) before giving up Device Owner.
 - If the shop list can't be loaded (DB error) the heartbeat leaves the field out, so a phone never loses protection by accident.
+
+## Anti-unlock protection (migrations 0025–0029, app 1.11.0)
+No app can stop a firmware flash on most phones (only the phone maker controls that layer). These layers make unlocking
+rare, noticed within hours, traceable and costly. Each degrades gracefully: before its migration runs, it does nothing.
+- **Unlock Tests (0025)** — Shop → Unlock Tests: record each model's test with your own tools (Power+Volume reset, FRP tool,
+  firmware flash, MDM remover) → `lib/devices/model-risk.ts` gives Safe / Risky / Untested / Not allowed (a "held" result
+  counts for 180 days; the latest result per attack wins). The agreement form shows the risk with a suggested down payment /
+  term; "Not allowed" needs the shop owner + a written reason (audit `agreement_model_risk_override`). Super admin →
+  Unlock Tests sets platform verdicts (a shop's own "bypassed" always wins over Safe/Risky).
+- **Hardware key (0026)** — app 1.11.0 creates an EC key in the phone's secure chip with a server challenge (heartbeat field
+  `attest_challenge`) and proves it at `/api/devices/attest` (Android key attestation; chain checked against Google's roots,
+  challenge, package name, Google revocation list — `lib/devices/attestation.ts`, no extra npm packages). Every check-in is then
+  signed: ECDSA-SHA256 over `"<X-MM-Ts>." + exact body`, header `X-MM-Sig` (`lib/devices/device-keys.ts`). Problems never
+  refuse a check-in — they raise tamper alerts. Phones on 1.10.x show "No hardware key (app 1.10)".
+- **Tamper alerts (0027)** — `lib/devices/tamper.ts`: rules with points (silent 2/7 days, unsigned / wrong / replayed signature,
+  key lost / replaced, attestation not Google, bootloader unlocked, firmware not verified, USB debugging / developer options,
+  phone registered again without Release, lost Device Owner). Score = open alerts of 30 days (max 100). Shop → Tamper Alerts:
+  resolve / false alarm, optional auto-lock at a threshold (restriction_reason 'tamper'; a payment never lifts it), strict USB
+  (USB debugging + file transfer blocked at all times on 1.11.0; Device Mgmt → "USB service 30 min"). Daily scan:
+  `vercel.json` cron → `/api/cron/tamper-scan` (set `CRON_SECRET` in Vercel). Customer notice: heartbeat `tamper_notice` (signed).
+- **Evidence chain (0028)** — every audit log entry, phone command, payment and identity event is copied into `evidence_chain`,
+  hash-linked (append-only; `evidence_verify()` finds the first changed row). Customer page → agreement → Evidence report
+  (printable, verified, shows the chain head).
+- **Technician lookup (0029)** — public page `/check` + `GET/POST /api/public/imei-check` → only "Financed — contact <shop>" or
+  "Not found", signed Ed25519 (public key `/api/public/imei-check/key`; set `IMEI_CHECK_SIGNING_KEY` = base64 of 32 random bytes).
+  Rate limited (30/hour, 200/day per connection). A shop can opt out (`shops.imei_lookup_enabled`).

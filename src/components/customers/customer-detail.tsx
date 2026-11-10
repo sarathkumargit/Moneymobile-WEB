@@ -6,6 +6,7 @@ import { getSessionProfile } from "@/lib/auth/auth";
 import { signedDocUrl } from "@/lib/shared/storage";
 import { CustomerManage } from "@/components/customers/customer-manage";
 import { AgreementCalculatorForm } from "@/components/billing/agreement-calculator-form";
+import { withDeviceRisk } from "@/lib/devices/model-risk";
 import { NewPaymentForm } from "@/components/billing/new-payment-form";
 import { UnlockCodeButton } from "@/components/unlocks/unlock-code-button";
 import { EnrollTokenButton } from "@/components/devices/enroll-token-button";
@@ -183,7 +184,8 @@ export async function CustomerDetail({ id, backHref }: { id: string; backHref: s
     const live = (mine.length ? mine : agr).filter((a) => !["cancelled", "released"].includes(a.status));
     return live.reduce((s, a) => s + Math.max(0, Number(a.outstanding_balance || 0)), 0);
   };
-  const deviceOpts = (allDevices ?? []).map((d: { id: string; brand: string | null; model: string | null; imei1: string | null }) => ({ id: d.id, label: `${d.brand ?? ""} ${d.model ?? ""}${d.imei1 ? ` · ${d.imei1}` : ""}` }));
+  const ratedDevices = await withDeviceRisk(supabase, session?.profile.shop_id ?? null, (allDevices ?? []) as { id: string; brand: string | null; model: string | null; imei1: string | null }[]);
+  const deviceOpts = ratedDevices.map((d) => ({ id: d.id, label: `${d.brand ?? ""} ${d.model ?? ""}${d.imei1 ? ` · ${d.imei1}` : ""}`, risk: d.risk }));
   const payAgrOpts = agr.filter((a) => a.status === "active").map((a) => ({ id: a.id, label: `${a.agreement_code ?? ""} · bal ${Number(a.outstanding_balance).toLocaleString()}` }));
   const primaryAgreementId = agr.find((a) => a.status === "active")?.id ?? agr[0]?.id ?? null;
 
@@ -349,7 +351,7 @@ export async function CustomerDetail({ id, backHref }: { id: string; backHref: s
 
     <div>
       <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Assign phone &amp; create installment</h3>
-      <AgreementCalculatorForm devices={deviceOpts} fixedCustomer={{ id: customer.id, full_name: customer.full_name }} />
+      <AgreementCalculatorForm devices={deviceOpts} fixedCustomer={{ id: customer.id, full_name: customer.full_name }} canOverrideRisk={canManage} />
     </div>
 
     <div>
@@ -381,6 +383,12 @@ export async function CustomerDetail({ id, backHref }: { id: string; backHref: s
                   <Badge variant={sBadge[a.status] ?? "neutral"} className="capitalize">{a.status}</Badge>
                 </div>
               </summary>
+              {canManage && (
+                <div className="flex justify-end border-b px-3 py-1.5"><Link href={`/shop/evidence/${a.id}`} className="text-xs font-medium text-primary hover:underline">Evidence report →</Link></div>
+              )}
+              {a.restriction === "restricted" && a.restriction_reason === "tamper" && (
+                <p className="border-b bg-red-50 px-3 py-2 text-xs text-red-700">🔒 Phone locked automatically after tamper alerts. Check the phone, then Unlock it from Device Mgmt. See Tamper Alerts.</p>
+              )}
               {a.restriction === "restricted" && a.restriction_reason === "overdue" && (
                 <p className="border-b bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-300">🔒 Phone locked for an overdue payment. Recording the overdue amount unlocks it automatically on the next check-in.</p>
               )}

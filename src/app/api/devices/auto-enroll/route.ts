@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { commandKey } from "@/lib/devices/command-sign";
 import { sha256, newToken, resolveAgreementId, buildAgreementStatus } from "@/lib/devices/device-api";
+import { recordTamper } from "@/lib/devices/tamper";
 
 // Token-free enrollment used by the shop's setup file. The phone authenticates with the
 // shop's own enroll_secret (baked into that shop's setup file) and identifies itself by IMEI.
@@ -45,9 +46,17 @@ export async function POST(req: Request) {
   const deviceToken = newToken();
   let enrId: string | null = null;
   let wasReleased = false;
+  // Tamper sign: this phone was already registered and in use (not released), yet it is registering again.
+  // That only happens after the app's data is gone — i.e. the phone was reset or flashed.
+  let reregistered: { id: string; shop_id: string; device_id: string | null; agreement_id: string | null; last_sync: string | null } | null = null;
   if (deviceId) {
-    const { data: existing } = await admin.from("device_enrollments").select("id,status").eq("device_id", deviceId).order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (existing) { enrId = existing.id; wasReleased = existing.status === "released"; }
+    const { data: existing } = await admin.from("device_enrollments").select("id,status,shop_id,device_id,agreement_id,last_sync,created_at").eq("device_id", deviceId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (existing) {
+      enrId = existing.id; wasReleased = existing.status === "released";
+      // Ignore the first minutes after setup (a QR + USB setup of the same phone registers twice).
+      const settled = existing.created_at && Date.now() - new Date(existing.created_at).getTime() > 10 * 60 * 1000;
+      if (existing.status === "enrolled" && existing.last_sync && settled) reregistered = existing;
+    }
   }
   if (wasReleased && enrId && deviceId) {
     // Clear the previous owner's operational trail so it reads as a new phone.
@@ -72,6 +81,12 @@ export async function POST(req: Request) {
       .insert({ ...row, enroll_token_hash: sha256(newToken()) }).select("id").single();
     if (error || !created) return Response.json({ success: false, message: error?.message || "Could not register device" }, { status: 500 });
     enrId = created.id;
+  }
+
+  if (reregistered && enrId) {
+    // The old hardware key belonged to the wiped install: retire it (the new app makes a new one).
+    try { await admin.from("device_keys").update({ status: "replaced", replaced_at: new Date().toISOString() }).eq("enrollment_id", enrId).eq("status", "active"); } catch { /* 0026 not run */ }
+    await recordTamper(admin, reregistered, "reregistered", { previous_check_in: reregistered.last_sync, app_version: di.app_version ?? null });
   }
 
   // Boot-loader state reported by the app ("locked" | "unlocked" | "unknown"). Best effort: ignored if

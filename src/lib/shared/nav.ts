@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Store, UserCog, Users, Smartphone, Boxes, HardDrive, MonitorSmartphone,
   FileText, CreditCard, KeyRound, BarChart3, ScrollText, Settings, ShieldCheck,
-  UserSquare, Wallet, UserCircle, Download, PackageOpen,
+  UserSquare, Wallet, UserCircle, Download, PackageOpen, ShieldAlert, Siren,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -30,6 +30,8 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Phone Models", href: "/super-admin/models", icon: Smartphone },
     { label: "Inventory", href: "/super-admin/inventory", icon: Boxes },
     { label: "Devices", href: "/super-admin/devices", icon: HardDrive },
+    { label: "Unlock Tests", href: "/super-admin/protection-tests", icon: ShieldAlert },
+    { label: "Tamper Alerts", href: "/super-admin/tamper-alerts", icon: Siren },
     { label: "Installments", href: "/super-admin/installments", icon: FileText },
     { label: "Payments", href: "/super-admin/payments", icon: CreditCard },
     { label: "Temporary Unlocks", href: "/super-admin/unlocks", icon: KeyRound },
@@ -44,6 +46,8 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: "Phone Models", href: "/shop/models", icon: Smartphone },
     { label: "Devices", href: "/shop/devices", icon: HardDrive },
     { label: "Device Mgmt", href: "/shop/device-management", icon: MonitorSmartphone },
+    { label: "Unlock Tests", href: "/shop/protection-tests", icon: ShieldAlert },
+    { label: "Tamper Alerts", href: "/shop/tamper-alerts", icon: Siren },
     { label: "Install App", href: "/shop/install-app", icon: Download },
     { label: "Customers", href: "/shop/customers", icon: UserSquare },
     { label: "Guarantors", href: "/shop/guarantors", icon: ShieldCheck },

@@ -6,10 +6,16 @@ import { evaluateOverdueLock } from "@/lib/billing/overdue-lock";
 import { commandKey, signCommand, signAgreement, signLaterDeadlines, signFrpAccounts } from "@/lib/devices/command-sign";
 import { idsForShop } from "@/lib/devices/reset-protection";
 import { appUpdateForHeartbeat } from "@/lib/devices/app-updates";
+import { checkCheckinSignature } from "@/lib/devices/device-keys";
+import { recordTamper, clearSilence, tamperNotice } from "@/lib/devices/tamper";
+import { signUsbPolicy, signNotice } from "@/lib/devices/command-sign";
 
 export async function POST(req: Request) {
-  const b = await req.json().catch(() => null);
-  if (!b) return Response.json({ success: false }, { status: 400 });
+  // Read the exact bytes first: app 1.11.0+ signs "<ts>.<body>" with its hardware key (lib/devices/device-keys.ts).
+  const raw = await req.text().catch(() => "");
+  let b: Record<string, any> | null = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+  try { b = JSON.parse(raw); } catch { b = null; }
+  if (!b || typeof b !== "object") return Response.json({ success: false }, { status: 400 });
   const admin = createAdminClient();
   const { data: enr, error: enrErr } = await admin.from("device_enrollments").select("*").eq("id", b.device_id).maybeSingle();
   // A database hiccup is not "this phone is unknown": answering 401 would make the phone drop its
@@ -144,7 +150,39 @@ export async function POST(req: Request) {
   // The shop's own Google account ID(s) + optional platform backup (FRP_ACCOUNT_IDS).
   const loadFrpIds = async () => { try { return await idsForShop(admin, enr.shop_id); } catch { return null; } };
 
-  const [, , command, agreement, , , appUpdate, , frpIds] = await Promise.all([updateStatus(), updateLocation(), takeCommand(), loadAgreement(), updateSim(), updateFcm(), offerUpdate(), saveFrpState(), loadFrpIds()]);
+  // Hardware key (app 1.11.0+): check the check-in signature, or hand out a challenge to create the key.
+  // Isolated: problems only become tamper alerts, never a refused check-in.
+  const body = b;
+  const keyCheck = () => checkCheckinSignature(admin, enr, req.headers, raw, body);
+
+  // Tamper signs the phone reports about itself (app 1.11.0+), plus "lost Device Owner". Best-effort.
+  const deviceSignals = async () => {
+    try {
+      if (enr.tamper_score > 0) await clearSilence(admin, enr.id); // it is checking in, so it is not silent
+      if (enr.management_active === true && body.device_owner === false) await recordTamper(admin, enr, "management_off", {});
+      const adb = typeof body.adb_enabled === "boolean" ? body.adb_enabled : null;
+      const dev = typeof body.dev_options === "boolean" ? body.dev_options : null;
+      if (adb === null && dev === null) return;
+      if (adb !== enr.adb_enabled || dev !== enr.dev_options) await admin.from("device_enrollments").update({ adb_enabled: adb, dev_options: dev }).eq("id", enr.id);
+      if (adb) await recordTamper(admin, enr, "adb_enabled", {});
+      else if (dev) await recordTamper(admin, enr, "dev_options", {});
+    } catch (e) { console.warn("[heartbeat] tamper signals skipped:", (e as Error).message); }
+  };
+
+  // USB policy for app 1.11.0+: block USB debugging + file transfer at all times (shop setting, default on),
+  // except during a staff "USB service" window. Signed, so a forged reply can't relax it.
+  const usbPolicy = async () => {
+    if (body.key_attest !== true) return null;
+    try {
+      const { data: shop, error } = await admin.from("shops").select("strict_usb").eq("id", enr.shop_id).maybeSingle();
+      if (error || !shop) return null;
+      const until = enr.usb_service_until ? new Date(enr.usb_service_until).getTime() : 0;
+      const p = { strict: shop.strict_usb !== false, until: until > Date.now() ? until : 0 };
+      return { ...p, sig: signUsbPolicy(enr.id, p) };
+    } catch { return null; }
+  };
+
+  const [, , command, agreement, , , appUpdate, , frpIds, keyResult, , usb] = await Promise.all([updateStatus(), updateLocation(), takeCommand(), loadAgreement(), updateSim(), updateFcm(), offerUpdate(), saveFrpState(), loadFrpIds(), keyCheck(), deviceSignals(), usbPolicy()]);
   const signedAgreement = agreement
     ? {
         ...agreement,
@@ -159,6 +197,13 @@ export async function POST(req: Request) {
   // own (Shop Settings) plus the optional platform backup FRP_ACCOUNT_IDS. If the list could not be loaded
   // (database hiccup) the field is left out, so the phone keeps what it has instead of being told "none".
   const frpFields = frpIds ? { frp_account_ids: frpIds, frp_sig: signFrpAccounts(enr.id, frpIds) } : {};
+  // Customer notice while a high-risk tamper alert is open (app 1.11.0+ shows it once per alert).
+  const notice = body.key_attest === true ? await tamperNotice(admin, enr.id, agreement?.shop_name ?? "", agreement?.shop_phone ?? "") : null;
+  const extras = {
+    ...(keyResult?.attestChallenge ? { attest_challenge: keyResult.attestChallenge } : {}),
+    ...(usb ? { usb_policy: usb } : {}),
+    ...(notice ? { tamper_notice: { ...notice, sig: signNotice(enr.id, notice) } } : {}),
+  };
   // app_update is only present when an update was requested; older apps ignore unknown fields.
-  return Response.json({ success: true, command, agreement: signedAgreement, command_key: key, ...frpFields, ...(appUpdate ? { app_update: appUpdate } : {}) });
+  return Response.json({ success: true, command, agreement: signedAgreement, command_key: key, ...frpFields, ...(appUpdate ? { app_update: appUpdate } : {}), ...extras });
 }

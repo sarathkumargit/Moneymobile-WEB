@@ -1,11 +1,13 @@
 import { formatSL } from "@/lib/shared/srilanka-time";
-import { ShieldCheck, Lock, Unlock, Smartphone, AlertTriangle } from "lucide-react";
+import { ShieldCheck, Lock, Unlock, Smartphone, AlertTriangle, Usb } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { NewEnrollmentForm } from "@/components/devices/new-enrollment-form";
 import { DeviceAdminButtons } from "@/components/devices/device-admin-buttons";
 import { ShopAppUpdatesCard } from "@/components/app-updates/shop-app-updates-card";
 import { SetupReportsCard } from "@/components/devices/setup-reports-card";
 import { loadFrpBadges, FrpBadgeView } from "@/components/devices/reset-protection-status";
+import { loadSecurityBadges, SecurityBadgeView } from "@/components/devices/security-status";
+import { allowUsbService } from "@/app/shop/tamper-alerts/actions";
 import { issueCommand, resolveSecurityEvent, removeEnrollment } from "@/app/shop/device-management/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +33,7 @@ export default async function DeviceManagementPage() {
     supabase.from("device_commands").select("id,command,status,created_at").order("created_at", { ascending: false }).limit(10),
   ]);
   const enr = (enrRes.data ?? []) as unknown as Enr[];
-  const frp = await loadFrpBadges(enr.map((x) => x.id));
+  const [frp, sec] = await Promise.all([loadFrpBadges(enr.map((x) => x.id)), loadSecurityBadges(enr.map((x) => x.id))]);
   const evts = (events ?? []) as unknown as Evt[];
   const cmds = (commands ?? []) as Array<{ id: string; command: string; status: string; created_at: string }>;
   const deviceOpts = (devices ?? []).map((d: { id: string; brand: string | null; model: string | null; imei1: string | null }) => ({ id: d.id, label: `${d.brand ?? ""} ${d.model ?? ""}${d.imei1 ? ` · ${d.imei1}` : ""}` }));
@@ -55,7 +57,7 @@ export default async function DeviceManagementPage() {
       ) : (<div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left text-muted-foreground"><th className="p-3 font-medium">Customer</th><th className="p-3 font-medium">Device</th><th className="p-3 font-medium">SIM</th><th className="p-3 font-medium">Last sync</th><th className="p-3 font-medium">Status</th><th className="p-3 font-medium">Control</th></tr></thead><tbody>
         {enr.map((e) => (<tr key={e.id} className="border-b last:border-0">
           <td className="p-3 font-medium">{e.customer?.full_name ?? "—"}</td>
-          <td className="p-3">{e.model ?? "—"}<div className="font-mono text-xs text-muted-foreground">{e.imei1 ?? ""}</div>{e.bootloader_state === "unlocked" && <Badge variant="danger" className="mt-1" title="The phone can be erased from a computer, removing the app">Bootloader unlocked — high risk</Badge>}<div><FrpBadgeView b={frp[e.id]} /></div></td>
+          <td className="p-3">{e.model ?? "—"}<div className="font-mono text-xs text-muted-foreground">{e.imei1 ?? ""}</div>{e.bootloader_state === "unlocked" && <Badge variant="danger" className="mt-1" title="The phone can be erased from a computer, removing the app">Bootloader unlocked — high risk</Badge>}<div><FrpBadgeView b={frp[e.id]} /></div><SecurityBadgeView b={sec[e.id]} /></td>
           <td className="p-3 text-muted-foreground">{e.sim_operator ?? "—"}</td>
           <td className="p-3 text-muted-foreground">{e.last_sync ? formatSL(e.last_sync) : "never"}</td>
           <td className="p-3">
@@ -70,6 +72,9 @@ export default async function DeviceManagementPage() {
               {e.status === "enrolled" && (<>
                 <form action={issueCommand}><input type="hidden" name="enrollment_id" value={e.id} /><input type="hidden" name="device_id" value={e.device_id ?? ""} /><input type="hidden" name="agreement_id" value={e.agreement_id ?? ""} /><input type="hidden" name="command" value="LOCK_DEVICE" /><Button type="submit" size="sm" variant="destructive"><Lock className="h-3.5 w-3.5" /> Lock</Button></form>
                 <form action={issueCommand}><input type="hidden" name="enrollment_id" value={e.id} /><input type="hidden" name="device_id" value={e.device_id ?? ""} /><input type="hidden" name="agreement_id" value={e.agreement_id ?? ""} /><input type="hidden" name="command" value="UNLOCK_DEVICE" /><Button type="submit" size="sm" variant="outline"><Unlock className="h-3.5 w-3.5" /> Unlock</Button></form>
+                {sec[e.id] && sec[e.id].key_state !== "legacy" && (
+                  <form action={allowUsbService}><input type="hidden" name="enrollment_id" value={e.id} /><Button type="submit" size="sm" variant="outline" title="Allow USB debugging and file transfer on this phone for 30 minutes (app 1.11.0+)"><Usb className="h-3.5 w-3.5" /> USB service 30 min</Button></form>
+                )}
               </>)}
               {e.device_id
                 ? <DeviceAdminButtons deviceId={e.device_id} label={`${e.model ?? "this phone"}`} compact />
