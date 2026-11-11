@@ -63,11 +63,11 @@ xiaomi_help() {
   if echo "$OUT" | grep -qiE "USER_RESTRICTED|INSTALL_CANCELED"; then
     echo ""
     echo " The phone blocked installing over USB (Xiaomi / Redmi / Poco):"
-    echo "  1. Settings > Additional settings > Developer options"
-    echo "  2. Turn ON \"Install via USB\" (it may ask you to sign in to a Mi account)"
+    echo "  1. Sign in to a Mi account (Xiaomi requires it for the next setting)."
+    echo "  2. Settings > Additional settings > Developer options > turn ON \"Install via USB\"."
     echo "  3. Run this file again and watch the phone — tap Install if it asks."
-    echo "  4. If step 4/5 then says an account is signed in: sign OUT of the Mi account"
-    echo "     and run this file once more."
+    echo "  4. Step 4/5 will then stop because the Mi account is signed in. Sign OUT of the"
+    echo "     Mi account and run this file once more — it skips the install and finishes."
   fi
 }
 
@@ -131,13 +131,18 @@ fi
 echo ""
 echo "[3/5] New phone — installing the app..."
 install_apk
-if ! echo "$OUT" | grep -q "Success"; then
+if echo "$OUT" | grep -q "Success"; then
+  echo "[OK] Installed."
+elif "$ADB" shell pm path com.moneymobile.installment 2>/dev/null | grep -q "package:"; then
+  # Installed on an earlier run (e.g. Xiaomi: installed with the Mi account signed in, then the
+  # Mi account was removed for step 4 and "Install via USB" switched itself off). Carry on.
+  echo "[OK] The app is already on the phone (from the earlier run) — continuing."
+else
   echo ""
   echo "[ERROR] Install failed (see the message above)."
   xiaomi_help
   read -n 1 -s -r -p "Press any key to close."; exit 1
 fi
-echo "[OK] Installed."
 
 echo ""
 echo "[4/5] Enabling full management (Device Owner)..."
@@ -152,6 +157,12 @@ else
     if echo "$OUT" | grep -qi "account"; then
       echo " Accounts on the phone (remove these in Settings > Passwords & accounts, WhatsApp can stay):"
       "$ADB" shell dumpsys account 2>/dev/null | tr -d '\r' | grep "Account {" | grep -v "Session:" | sort -u | sed 's/^ */   - /'
+    fi
+    if echo "$BRAND" | grep -qiE "xiaomi|redmi|poco"; then
+      echo ""
+      echo " Xiaomi / Redmi / Poco: the app IS installed. Now sign OUT of the Mi account"
+      echo " (Settings > Xiaomi account / Mi Account > Sign out, and let it turn off Find device),"
+      echo " then run this file again. It skips the install and finishes steps 4 and 5."
     fi
     read -n 1 -s -r -p "Press any key to close."; exit 1
   fi

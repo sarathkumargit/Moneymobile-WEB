@@ -104,13 +104,18 @@ if !errorlevel! equ 0 (
 echo.
 echo [3/5] New phone - installing the app...
 call :install_app
-if not "!MM_INSTALL!"=="OK" (
+set "MM_HAVE_APP="
+if "!MM_INSTALL!"=="OK" set "MM_HAVE_APP=new"
+if not defined MM_HAVE_APP (
+  "%ADB%" shell pm path com.moneymobile.installment 2>nul | findstr /C:"package:" >nul && set "MM_HAVE_APP=old"
+)
+if not defined MM_HAVE_APP (
   echo.
   echo [ERROR] Install failed - see the message above.
   call :xiaomi_help
   pause & exit /b 1
 )
-echo [OK] Installed.
+if "!MM_HAVE_APP!"=="new" ( echo [OK] Installed. ) else ( echo [OK] The app is already on the phone ^(from the earlier run^) - continuing. )
 
 echo.
 echo [4/5] Enabling full management ^(Device Owner^)...
@@ -126,6 +131,13 @@ if not defined ALREADY (
     echo [ERROR] Could not enable management. Usually an account is still signed in.
     echo  Remove accounts in Settings ^> Passwords ^& accounts ^(WhatsApp can stay^), then run again:
     "%ADB%" shell dumpsys account 2>nul | findstr /C:"Account {" | findstr /V /C:"Session:"
+    echo !BRAND! | findstr /I "xiaomi redmi poco" >nul
+    if !errorlevel! equ 0 (
+      echo.
+      echo  Xiaomi / Redmi / Poco: the app IS installed. Now sign OUT of the Mi account
+      echo  ^(Settings ^> Xiaomi account ^> Sign out, and let it turn off Find device^),
+      echo  then run this file again. It skips the install and finishes steps 4 and 5.
+    )
     pause & exit /b 1
   )
 )
@@ -213,10 +225,10 @@ findstr /I /C:"USER_RESTRICTED" /C:"INSTALL_CANCELED" "%TEMP%\mm_inst.txt" >nul
 if !errorlevel! equ 0 (
   echo.
   echo  The phone blocked installing over USB ^(Xiaomi / Redmi / Poco^):
-  echo   1. Settings ^> Additional settings ^> Developer options
-  echo   2. Turn ON "Install via USB" ^(it may ask you to sign in to a Mi account^)
+  echo   1. Sign in to a Mi account ^(Xiaomi requires it for the next setting^).
+  echo   2. Settings ^> Additional settings ^> Developer options ^> turn ON "Install via USB".
   echo   3. Run this file again and watch the phone - tap Install if it asks.
-  echo   4. If step 4/5 then says an account is signed in: sign OUT of the Mi account
-  echo      and run this file once more.
+  echo   4. Step 4/5 will then stop because the Mi account is signed in. Sign OUT of the
+  echo      Mi account and run this file once more - it skips the install and finishes.
 )
 exit /b 0

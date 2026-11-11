@@ -8,6 +8,9 @@ import { SetupReportsCard } from "@/components/devices/setup-reports-card";
 import { loadFrpBadges, FrpBadgeView } from "@/components/devices/reset-protection-status";
 import { loadSecurityBadges, SecurityBadgeView } from "@/components/devices/security-status";
 import { allowUsbService } from "@/app/shop/tamper-alerts/actions";
+import { ReleaseCodeButton } from "@/components/unlocks/release-code-button";
+import { NeedsLinkingCard } from "@/components/devices/needs-linking-card";
+import { getSessionProfile } from "@/lib/auth/auth";
 import { issueCommand, resolveSecurityEvent, removeEnrollment } from "@/app/shop/device-management/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +26,7 @@ function online(last: string | null) { return last ? Date.now() - new Date(last)
 
 export default async function DeviceManagementPage() {
   const supabase = createClient();
+  const isOwner = (await getSessionProfile())?.profile.role === "shop_admin";
   const ENR = "id,status,model,imei1,sim_operator,battery_level,last_sync,agreement_id,device_id, customer:customers(full_name)";
   let enrRes = await supabase.from("device_enrollments").select(ENR + ",bootloader_state").order("created_at", { ascending: false });
   if (enrRes.error) enrRes = (await supabase.from("device_enrollments").select(ENR).order("created_at", { ascending: false })) as typeof enrRes; // migration 0019 not run yet
@@ -48,6 +52,11 @@ export default async function DeviceManagementPage() {
     <ShopAppUpdatesCard />
 
     <SetupReportsCard />
+
+    <NeedsLinkingCard
+      orphans={enr.filter((x) => !x.device_id && x.status === "enrolled")}
+      connectedDeviceIds={enr.filter((x) => x.device_id && x.status === "enrolled" && x.last_sync).map((x) => x.device_id as string)}
+      isOwner={isOwner} />
 
     <NewEnrollmentForm devices={deviceOpts} agreements={agrOpts} />
 
@@ -80,6 +89,7 @@ export default async function DeviceManagementPage() {
                 ? <DeviceAdminButtons deviceId={e.device_id} label={`${e.model ?? "this phone"}`} compact />
                 : (<form action={removeEnrollment}><input type="hidden" name="enrollment_id" value={e.id} /><Button type="submit" size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50">Remove</Button></form>)}
               {e.status !== "enrolled" && !e.device_id && <span className="text-xs text-muted-foreground">awaiting enrollment</span>}
+              {isOwner && e.status === "enrolled" && <ReleaseCodeButton enrollmentId={e.id} />}
             </div>
           </td>
         </tr>))}

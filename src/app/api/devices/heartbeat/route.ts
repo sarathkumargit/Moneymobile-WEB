@@ -9,6 +9,7 @@ import { appUpdateForHeartbeat } from "@/lib/devices/app-updates";
 import { checkCheckinSignature } from "@/lib/devices/device-keys";
 import { recordTamper, clearSilence, tamperNotice } from "@/lib/devices/tamper";
 import { signUsbPolicy, signNotice } from "@/lib/devices/command-sign";
+import { autoLinkOrphan } from "@/lib/devices/imei-link";
 
 export async function POST(req: Request) {
   // Read the exact bytes first: app 1.11.0+ signs "<ts>.<body>" with its hardware key (lib/devices/device-keys.ts).
@@ -23,6 +24,14 @@ export async function POST(req: Request) {
   if (enrErr) return Response.json({ success: false, message: "Temporary server problem" }, { status: 503 });
   if (!enr || !enr.device_token_hash || enr.device_token_hash !== sha256(b.device_token || "")) {
     return Response.json({ success: false }, { status: 401 });
+  }
+  // Registered without a phone record (no IMEI could be read at setup)? App 1.11.4+ reports both IMEIs on every
+  // check-in, so match and link it now — the customer, agreement and lock state follow in this same reply.
+  if (!enr.device_id && (b.imei || b.imei2)) {
+    try {
+      const linked = await autoLinkOrphan(admin, enr, [b.imei, b.imei2]);
+      if (linked) Object.assign(enr, linked);
+    } catch (e) { console.warn("[heartbeat] IMEI auto-link failed:", (e as Error).message); }
   }
   // SIM-change detection (backup to the phone's own instant lock): flag it and lock server-side.
   const simState = b.sim_state === "absent" || b.sim_state === "present" ? (b.sim_state as string) : null;

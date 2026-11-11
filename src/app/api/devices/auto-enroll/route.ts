@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { commandKey } from "@/lib/devices/command-sign";
 import { sha256, newToken, resolveAgreementId, buildAgreementStatus } from "@/lib/devices/device-api";
 import { recordTamper } from "@/lib/devices/tamper";
+import { imeiList, findOrClaimDevice } from "@/lib/devices/imei-link";
 
 // Token-free enrollment used by the shop's setup file. The phone authenticates with the
 // shop's own enroll_secret (baked into that shop's setup file) and identifies itself by IMEI.
@@ -15,7 +16,9 @@ export async function POST(req: Request) {
   const shopId = String(body.shop_id || "").trim();
   const secret = String(body.enroll_secret || "").trim();
   const di = body.device_info || {};
-  const imei = (di.imei ? String(di.imei) : "").trim() || null;
+  // App 1.11.4+ sends both IMEIs; the phone record is found by EITHER of them.
+  const imeis = imeiList(di.imei, di.imei2);
+  const imei = imeis[0] ?? null;
   if (!shopId || !secret) return Response.json({ success: false, message: "Missing shop id or secret" }, { status: 400 });
 
   const admin = createAdminClient();
@@ -24,20 +27,12 @@ export async function POST(req: Request) {
     return Response.json({ success: false, message: "This setup file is not valid for this shop." }, { status: 401 });
   }
 
-  // Find or create the device row for this phone (identified by IMEI within the shop).
+  // Find or create the device row for this phone (identified by IMEI1 or IMEI2 within the shop). No IMEI at all
+  // = the phone registers without a record and shows under Device Mgmt -> "Needs linking".
   let deviceId: string | null = null;
-  if (imei) {
-    const { data: dev } = await admin.from("devices").select("id").eq("shop_id", shopId).eq("imei1", imei).maybeSingle();
-    if (dev) {
-      deviceId = dev.id;
-      await admin.from("devices").update({ brand: di.brand ?? null, model: di.model ?? null, enrollment: "enrolled" }).eq("id", dev.id);
-    } else {
-      const { data: created } = await admin.from("devices").insert({
-        shop_id: shopId, brand: di.brand ?? null, model: di.model ?? null, imei1: imei,
-        serial_number: di.serial_number ?? null, status: "in_stock", enrollment: "enrolled",
-      }).select("id").single();
-      deviceId = created?.id ?? null;
-    }
+  if (imeis.length) {
+    const claim = await findOrClaimDevice(admin, shopId, imeis, { brand: di.brand ?? null, model: di.model ?? null, serial: di.serial_number ?? null });
+    deviceId = claim.deviceId;
   }
 
   // Find the existing enrollment for this device, if any, and whether this is a RESALE
@@ -100,6 +95,6 @@ export async function POST(req: Request) {
   if (agreementId) await admin.from("device_enrollments").update({ agreement_id: agreementId }).eq("id", enrId);
   const agreement = await buildAgreementStatus(admin, agreementId);
 
-  await admin.from("audit_logs").insert({ shop_id: shopId, action: "device_auto_enrolled", entity: "device_enrollments", entity_id: enrId, details: { imei, model: di.model ?? null } });
+  await admin.from("audit_logs").insert({ shop_id: shopId, action: "device_auto_enrolled", entity: "device_enrollments", entity_id: enrId, details: { imei, imei2: imeis[1] ?? null, model: di.model ?? null, matched_record: !!deviceId } });
   return Response.json({ success: true, device_id: enrId, device_token: deviceToken, command_key: commandKey(enrId as string), agreement, message: "Device registered" });
 }

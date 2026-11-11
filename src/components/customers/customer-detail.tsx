@@ -9,6 +9,7 @@ import { AgreementCalculatorForm } from "@/components/billing/agreement-calculat
 import { withDeviceRisk } from "@/lib/devices/model-risk";
 import { NewPaymentForm } from "@/components/billing/new-payment-form";
 import { UnlockCodeButton } from "@/components/unlocks/unlock-code-button";
+import { ReleaseCodeButton } from "@/components/unlocks/release-code-button";
 import { EnrollTokenButton } from "@/components/devices/enroll-token-button";
 import { resolveSecurityEvent, sendTestPush } from "@/app/shop/device-management/actions";
 import { DeviceAdminButtons } from "@/components/devices/device-admin-buttons";
@@ -129,8 +130,14 @@ export async function CustomerDetail({ id, backHref }: { id: string; backHref: s
   ) : null;
 
   const enrByDevice: Record<string, EnrRow> = {};
-  // rows are newest-first: keep the first (newest) enrollment per phone
-  enr.forEach((e) => { if (e.device_id && !enrByDevice[e.device_id]) enrByDevice[e.device_id] = e; });
+  // rows are newest-first. Per phone keep the most useful one: a connected phone (enrolled) beats an unused token
+  // (pending), which beats a released one, which beats a retired (replaced) one; newest wins within the same rank.
+  const rank = (st: string) => (st === "enrolled" ? 0 : st === "pending" ? 1 : st === "released" ? 2 : 3);
+  enr.forEach((e) => {
+    if (!e.device_id) return;
+    const cur = enrByDevice[e.device_id];
+    if (!cur || rank(e.status) < rank(cur.status)) enrByDevice[e.device_id] = e;
+  });
   const enrIds = enr.map((e) => e.id);
   // Events, commands and last-known locations all depend only on enrIds — one parallel batch
   // (the location lookup used to be a separate, later round-trip).
@@ -318,7 +325,8 @@ export async function CustomerDetail({ id, backHref }: { id: string; backHref: s
             {canOperateDevices && (
               <div className="mt-3 space-y-1 border-t pt-3">
                 {released && <p className="text-xs text-muted-foreground">Released to the customer — Lock, Unlock and unlock codes no longer apply to this phone.</p>}
-                <DeviceAdminButtons deviceId={d.id} customerId={customer.id} label={`${d.brand ?? ""} ${d.model ?? "phone"}`.trim()} />
+                <DeviceAdminButtons deviceId={d.id} customerId={customer.id} label={`${d.brand ?? ""} ${d.model ?? "phone"}`.trim()} owed={owingFor(d.id)} canForce={canManage} />
+                {canManage && e && !released && e.status === "enrolled" && <div className="pt-1"><ReleaseCodeButton enrollmentId={e.id} /></div>}
                 <p className="text-xs text-muted-foreground"><b>Reset for resale</b>: selling it again — unlinks it from this customer (factory reset the phone, then run setup). <b>Delete phone</b>: remove it from MoneyMobile completely.</p>
               </div>
             )}

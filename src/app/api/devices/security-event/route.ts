@@ -11,6 +11,12 @@ export async function POST(req: Request) {
   const { data: enr } = await admin.from("device_enrollments").select("id,shop_id,device_id,customer_id,agreement_id,device_token_hash").eq("id", b.device_id).maybeSingle();
   if (!enr || enr.device_token_hash !== sha256(b.device_token || "")) return Response.json({ success: false, error: "unauthorized" }, { status: 401 });
   const type = String(b.event_type ?? "unknown");
+  // Released on the phone with a shop "offline release code" (app 1.11.4+). The phone has already
+  // removed all protection and Device Owner; record it like a normal release.
+  if (type === "OFFLINE_RELEASE_CODE") {
+    await recordOfflineRelease(admin, enr, b.details ?? null, typeof b.timestamp === "number" && typeof b.sent_at === "number" ? b.timestamp + (Date.now() - b.sent_at) : null);
+    return Response.json({ success: true, data: null, message: "recorded" });
+  }
   const isSim = type.toLowerCase().includes("sim");
   // When did the phone actually see this? It may be reporting hours later (it was offline).
   // Correct for a wrong phone clock using the gap between its send time and ours.
@@ -77,4 +83,39 @@ export async function POST(req: Request) {
     }
   }
   return Response.json({ success: true, data: null, message: "recorded" });
+}
+
+type Admin = ReturnType<typeof createAdminClient>;
+type EnrRow = { id: string; shop_id: string; device_id: string | null; customer_id: string | null; agreement_id: string | null };
+
+/**
+ * The phone was freed with an offline release code. The enrollment is always marked released and its
+ * token wiped (the shop's channel to this phone ends). The agreement and the phone record are marked
+ * released only when nothing is owed — if money is still owed the agreement stays open with its
+ * balance, so the debt is not lost and the phone can be set up again for the same customer.
+ */
+async function recordOfflineRelease(admin: Admin, enr: EnrRow, details: string | null, atMs: number | null) {
+  const now = new Date().toISOString();
+  await admin.from("device_enrollments").update({ status: "released", device_token_hash: null, management_active: false, updated_at: now }).eq("id", enr.id);
+  const agreementId = enr.agreement_id ?? await resolveAgreementId(admin, enr);
+  let owed = 0;
+  if (agreementId) {
+    const { data: a } = await admin.from("installment_agreements").select("outstanding_balance").eq("id", agreementId).maybeSingle();
+    owed = Math.max(0, Number(a?.outstanding_balance || 0));
+  }
+  if (owed <= 0 && enr.device_id) {
+    await admin.from("devices").update({ status: "released" }).eq("id", enr.device_id);
+    await admin.from("installment_agreements").update({ restriction: "active", status: "released" })
+      .eq("device_id", enr.device_id).not("status", "in", "(cancelled,released)");
+  }
+  const when = atMs ? new Date(Math.min(atMs, Date.now())).toLocaleString("en-LK", { timeZone: "Asia/Colombo" }) : null;
+  await admin.from("device_security_events").insert({
+    shop_id: enr.shop_id, enrollment_id: enr.id, device_id: enr.device_id, event_type: "OFFLINE_RELEASE_CODE",
+    details: `${details ?? "Released on the phone with a shop release code"}${when ? ` (${when})` : ""}${owed > 0 ? ` — Rs ${Math.round(owed).toLocaleString("en-LK")} still owed; the agreement stays open` : ""}`,
+    status: "resolved",
+  });
+  await admin.from("audit_logs").insert({
+    shop_id: enr.shop_id, actor_id: null, action: "offline_release_confirmed", entity: "device_enrollments", entity_id: enr.id,
+    details: { device_id: enr.device_id, agreement_id: agreementId, owed, released_at: atMs ? new Date(atMs).toISOString() : null },
+  });
 }

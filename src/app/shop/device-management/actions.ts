@@ -9,6 +9,8 @@ import { sha256, newToken, resolveAgreementId } from "@/lib/devices/device-api";
 import { sendFcmCommand } from "@/lib/devices/fcm";
 import { randomUUID } from "crypto";
 import { queueCommand, getOrCreateEnrollment, type EnrRef } from "@/lib/devices/device-commands";
+import { linkEnrollment, imeiList } from "@/lib/devices/imei-link";
+import { nudgePhoneByAgreement } from "@/lib/devices/nudge";
 export type ActionState = { error?: string; success?: string; at?: number };
 
 const canOperate = (role: string) => role === "shop_admin" || role === "employee";
@@ -125,31 +127,19 @@ export async function resetDeviceRecord(fd: FormData): Promise<void> {
   if (!s || !s.profile.shop_id || !canOperate(s.profile.role)) return;
   const device_id = String(fd.get("device_id") || "").trim();
   const customer_id = String(fd.get("customer_id") || "").trim() || null;
+  // Money still owed: only the owner, and only after confirming on the customer's page.
+  const force = s.profile.role === "shop_admin" && fd.get("force") === "1";
   if (!device_id) return;
-  // Service client (employees' row-level rules don't allow these writes), but only after
-  // checking the phone belongs to the signed-in user's own shop.
   const admin = createAdminClient();
-  const { data: dev } = await admin.from("devices").select("id,shop_id,imei1,customer_id").eq("id", device_id).maybeSingle();
+  const { data: dev } = await admin.from("devices").select("id,shop_id,customer_id").eq("id", device_id).maybeSingle();
   if (!dev || dev.shop_id !== s.profile.shop_id) return;
-  const { data: enrs } = await admin.from("device_enrollments").select("id").eq("device_id", device_id);
-  const ids = (enrs ?? []).map((e: { id: string }) => e.id);
-  if (ids.length) {
-    await Promise.all([
-      admin.from("device_commands").delete().in("enrollment_id", ids),
-      admin.from("device_security_events").delete().in("enrollment_id", ids),
-      admin.from("device_locations").delete().in("enrollment_id", ids),
-    ]);
-    await admin.from("device_enrollments").update({
-      status: "released", device_token_hash: null, management_active: false, agreement_id: null, customer_id: null,
-      last_lat: null, last_lng: null, location_accuracy: null, location_at: null, updated_at: new Date().toISOString(),
-    }).in("id", ids);
-  }
-  // Unlink from the previous customer + their agreements, so after a fresh setup this IMEI is a
-  // new, unassigned phone (the old agreements stay on the customer for their payment history).
+  // Name the phone on its agreements/payments first (fills empty columns only, harmless on its own).
   await keepPhoneOnAgreements(admin, device_id);
-  await admin.from("installment_agreements").update({ device_id: null }).eq("device_id", device_id);
-  await admin.from("devices").update({ status: "in_stock", customer_id: null, enrollment: "not_enrolled" }).eq("id", device_id);
-  await admin.from("audit_logs").insert({ shop_id: s.profile.shop_id, actor_id: s.user.id, action: "reset_device_for_resale", entity: "devices", entity_id: device_id, details: { imei: dev.imei1, previous_customer: dev.customer_id } });
+  // Everything else happens in ONE database transaction (migration 0030): all done, or nothing changed.
+  const { data, error } = await admin.rpc("reset_device_for_resale", { p_device: device_id, p_shop: s.profile.shop_id, p_actor: s.user.id, p_force: force });
+  if (error) { setFlash(/reset_device_for_resale|does not exist|schema cache/i.test(error.message) ? "Run migration 0030_device_linking.sql in Supabase first. Nothing was changed." : `Nothing was changed: ${error.message}`, "error"); return; }
+  const r = (data ?? {}) as { ok?: boolean; error?: string };
+  if (!r.ok) { setFlash(r.error ?? "Could not reset the phone. Nothing was changed.", "error"); return; }
   setFlash("Phone reset for resale. Factory reset it, then run the setup file again — it comes back as a new phone.");
   const cid = customer_id ?? dev.customer_id;
   if (cid) { revalidatePath(`/shop/customers/${cid}`); revalidatePath(`/employee/customers/${cid}`); }
@@ -175,17 +165,17 @@ export async function deleteDevice(fd: FormData): Promise<void> {
   const s = await getSessionProfile();
   if (!s || !s.profile.shop_id || !canOperate(s.profile.role)) return;
   const device_id = String(fd.get("device_id") || "").trim();
+  const force = s.profile.role === "shop_admin" && fd.get("force") === "1";
   if (!device_id) return;
   const admin = createAdminClient();
-  const { data: dev } = await admin.from("devices").select("id,shop_id,imei1,brand,model,customer_id").eq("id", device_id).maybeSingle();
+  const { data: dev } = await admin.from("devices").select("id,shop_id,brand,model,customer_id").eq("id", device_id).maybeSingle();
   if (!dev || dev.shop_id !== s.profile.shop_id) return;
-  // Enrollment rows cascade to commands / security events / locations / unlock requests.
-  await admin.from("device_enrollments").delete().eq("device_id", device_id);
   await keepPhoneOnAgreements(admin, device_id);
-  await admin.from("installment_agreements").update({ device_id: null }).eq("device_id", device_id);
-  const { error } = await admin.from("devices").delete().eq("id", device_id);
-  if (error) { setFlash(`Could not delete the phone: ${error.message}`, "error"); return; }
-  await admin.from("audit_logs").insert({ shop_id: s.profile.shop_id, actor_id: s.user.id, action: "delete_device", entity: "devices", entity_id: device_id, details: { imei: dev.imei1, brand: dev.brand, model: dev.model, previous_customer: dev.customer_id } });
+  // One database transaction (migration 0030): registrations, agreement links and the phone go together, or not at all.
+  const { data, error } = await admin.rpc("delete_device_record", { p_device: device_id, p_shop: s.profile.shop_id, p_actor: s.user.id, p_force: force });
+  if (error) { setFlash(/delete_device_record|does not exist|schema cache/i.test(error.message) ? "Run migration 0030_device_linking.sql in Supabase first. Nothing was changed." : `Could not delete the phone — nothing was changed: ${error.message}`, "error"); return; }
+  const r = (data ?? {}) as { ok?: boolean; error?: string };
+  if (!r.ok) { setFlash(r.error ?? "Could not delete the phone. Nothing was changed.", "error"); return; }
   setFlash(`${[dev.brand, dev.model].filter(Boolean).join(" ") || "Phone"} deleted.`);
   if (dev.customer_id) { revalidatePath(`/shop/customers/${dev.customer_id}`); revalidatePath(`/employee/customers/${dev.customer_id}`); }
   revalidatePath("/shop/devices"); revalidatePath("/employee/devices"); revalidatePath("/shop/device-management");
@@ -247,4 +237,40 @@ export async function removeEnrollment(fd: FormData): Promise<void> {
   await admin.from("audit_logs").insert({ shop_id: s.profile.shop_id, actor_id: s.user.id, action: "remove_enrollment", entity: "device_enrollments", entity_id: id, details: { imei: enr.imei1 } });
   setFlash("Entry removed.");
   revalidatePath("/shop/device-management");
+}
+
+// Device Mgmt -> "Needs linking": connect a phone that is set up and checking in, but was not matched to its phone
+// record, to the record the staff member picks. One database transaction (migration 0030): links it, retires the
+// record's unused old registrations and fills in the customer + agreement. "force" is owner-only.
+export async function linkOrphanEnrollment(fd: FormData): Promise<void> {
+  const s = await getSessionProfile();
+  if (!s || !s.profile.shop_id || !canOperate(s.profile.role)) return;
+  const enrollmentId = String(fd.get("enrollment_id") || "").trim();
+  const deviceId = String(fd.get("device_id") || "").trim();
+  const force = s.profile.role === "shop_admin" && fd.get("force") === "on";
+  if (!enrollmentId || !deviceId) { setFlash("Choose the phone record to link.", "error"); return; }
+  const admin = createAdminClient();
+  const [{ data: enr }, { data: dev }] = await Promise.all([
+    admin.from("device_enrollments").select("id,shop_id,imei1,model,device_id,status").eq("id", enrollmentId).maybeSingle(),
+    admin.from("devices").select("id,shop_id,imei1,imei2,brand,model,customer_id").eq("id", deviceId).maybeSingle(),
+  ]);
+  if (!enr || !dev || enr.shop_id !== s.profile.shop_id || dev.shop_id !== s.profile.shop_id) { setFlash("Phone not found.", "error"); return; }
+  // The phone reported an IMEI and it is not this record's: almost certainly the wrong record.
+  const reported = imeiList(enr.imei1);
+  const record = imeiList(dev.imei1, dev.imei2);
+  if (reported.length && record.length && !reported.some((x) => record.includes(x)) && !force) {
+    setFlash(`This phone's IMEI (${reported[0]}) is not the IMEI on that record (${record.join(" / ")}). Check you picked the right customer${s.profile.role === "shop_admin" ? ", or tick “Link even if it doesn't match”" : ""}.`, "error");
+    return;
+  }
+  const r = await linkEnrollment(admin, enrollmentId, deviceId, { actor: s.user.id, source: "manual", force });
+  if (!r.ok) {
+    setFlash(r.code === "other_active" && s.profile.role === "shop_admin"
+      ? `${r.error} Tick “Link even if it doesn't match” to link it anyway.`
+      : r.error ?? "Could not link the phone.", "error");
+    return;
+  }
+  if (r.agreementId) await nudgePhoneByAgreement(admin, r.agreementId, deviceId);
+  setFlash(`Linked to ${[dev.brand, dev.model].filter(Boolean).join(" ") || "the phone record"}${r.retired ? ` — ${r.retired} unused old registration${r.retired > 1 ? "s" : ""} retired` : ""}. It shows on the customer's page now.`);
+  if (dev.customer_id) { revalidatePath(`/shop/customers/${dev.customer_id}`); revalidatePath(`/employee/customers/${dev.customer_id}`); }
+  revalidatePath("/shop/device-management"); revalidatePath("/shop/devices");
 }
