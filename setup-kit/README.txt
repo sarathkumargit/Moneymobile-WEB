@@ -14,6 +14,8 @@ NEW / FACTORY-RESET PHONE — on the phone first
   3. Settings > About phone > Software information > tap "Build number" 7 times,
      then Settings > Developer options > turn ON "USB debugging".
   4. Put the customer's SIM in (this becomes the approved SIM).
+  Xiaomi / Redmi / Poco only: in Developer options also turn ON "Install via USB".
+     If it asks for a Mi account, sign in, then sign OUT again before setup step 4/5.
 
 THEN
   Plug the phone in, tap "Allow" on the phone, run the setup file, wait for DONE.

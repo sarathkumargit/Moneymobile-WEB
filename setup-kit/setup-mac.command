@@ -48,6 +48,29 @@ if ! command -v adb >/dev/null 2>&1; then
   fi
 fi
 
+# Install the app. Tries with -g first; Xiaomi / Redmi / Poco refuse -g unless an extra
+# Mi-account setting is on, so it retries without -g. Nothing is lost: once MoneyMobile is
+# Device Owner it grants its own permissions. Same file works for every brand.
+install_apk() {
+  OUT=$("$ADB" install -r -g MoneyMobile.apk 2>&1 | tr -d '\r')
+  if ! echo "$OUT" | grep -q "Success"; then
+    echo "      First try was refused (normal on Xiaomi, Redmi and Poco) — trying again..."
+    OUT=$("$ADB" install -r MoneyMobile.apk 2>&1 | tr -d '\r')
+  fi
+  echo "$OUT"
+}
+xiaomi_help() {
+  if echo "$OUT" | grep -qiE "USER_RESTRICTED|INSTALL_CANCELED"; then
+    echo ""
+    echo " The phone blocked installing over USB (Xiaomi / Redmi / Poco):"
+    echo "  1. Settings > Additional settings > Developer options"
+    echo "  2. Turn ON \"Install via USB\" (it may ask you to sign in to a Mi account)"
+    echo "  3. Run this file again and watch the phone — tap Install if it asks."
+    echo "  4. If step 4/5 then says an account is signed in: sign OUT of the Mi account"
+    echo "     and run this file once more."
+  fi
+}
+
 echo ""
 echo "[2/5] Waiting for the phone (plug in via USB, allow USB debugging)..."
 "$ADB" wait-for-device
@@ -66,7 +89,7 @@ if "$ADB" shell "dumpsys device_policy | grep -A3 'Device Owner'" 2>/dev/null | 
   OLDV=$("$ADB" shell dumpsys package com.moneymobile.installment 2>/dev/null | tr -d '\r' | grep -m1 versionName | sed 's/.*=//')
   echo ""
   echo "[3/3] This phone is already set up (app v${OLDV:-?}) — updating the app only..."
-  OUT=$("$ADB" install -r -g MoneyMobile.apk 2>&1 | tr -d '\r'); echo "$OUT"
+  install_apk
   echo ""
   echo " ====================================================="
   if echo "$OUT" | grep -qi "Success"; then
@@ -107,7 +130,13 @@ fi
 
 echo ""
 echo "[3/5] New phone — installing the app..."
-"$ADB" install -r -g MoneyMobile.apk
+install_apk
+if ! echo "$OUT" | grep -q "Success"; then
+  echo ""
+  echo "[ERROR] Install failed (see the message above)."
+  xiaomi_help
+  read -n 1 -s -r -p "Press any key to close."; exit 1
+fi
 echo "[OK] Installed."
 
 echo ""

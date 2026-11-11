@@ -65,8 +65,8 @@ echo [OK] Connected: !BRAND! !MODEL!
 if !errorlevel! equ 0 (
   echo.
   echo [3/3] This phone is already set up - updating the app only...
-  "%ADB%" install -r -g MoneyMobile.apk > "%TEMP%\mm_upd.txt" 2>&1
-  type "%TEMP%\mm_upd.txt"
+  call :install_app
+  copy /y "%TEMP%\mm_inst.txt" "%TEMP%\mm_upd.txt" >nul
   echo.
   echo  =====================================================
   findstr /I /C:"Success" "%TEMP%\mm_upd.txt" >nul
@@ -103,8 +103,13 @@ if !errorlevel! equ 0 (
 
 echo.
 echo [3/5] New phone - installing the app...
-"%ADB%" install -r -g MoneyMobile.apk
-if %errorlevel% neq 0 ( echo [ERROR] Install failed. & pause & exit /b 1 )
+call :install_app
+if not "!MM_INSTALL!"=="OK" (
+  echo.
+  echo [ERROR] Install failed - see the message above.
+  call :xiaomi_help
+  pause & exit /b 1
+)
 echo [OK] Installed.
 
 echo.
@@ -185,3 +190,33 @@ if "!MMDONE!"=="OK" (
 echo  =====================================================
 echo.
 pause
+exit /b 0
+
+:: -- Install the app ----------------------------------------------------------
+:: Tries with -g first. Xiaomi / Redmi / Poco refuse -g unless an extra Mi-account setting
+:: is on, so it then retries without -g. Nothing is lost: once MoneyMobile is Device Owner
+:: it grants its own permissions. Same file works for Samsung, Infinix, Tecno, Xiaomi...
+:install_app
+set "MM_INSTALL="
+"%ADB%" install -r -g MoneyMobile.apk > "%TEMP%\mm_inst.txt" 2>&1
+findstr /C:"Success" "%TEMP%\mm_inst.txt" >nul && set "MM_INSTALL=OK"
+if not defined MM_INSTALL (
+  echo       First try was refused ^(normal on Xiaomi, Redmi and Poco^) - trying again...
+  "%ADB%" install -r MoneyMobile.apk > "%TEMP%\mm_inst.txt" 2>&1
+  findstr /C:"Success" "%TEMP%\mm_inst.txt" >nul && set "MM_INSTALL=OK"
+)
+type "%TEMP%\mm_inst.txt"
+exit /b 0
+
+:xiaomi_help
+findstr /I /C:"USER_RESTRICTED" /C:"INSTALL_CANCELED" "%TEMP%\mm_inst.txt" >nul
+if !errorlevel! equ 0 (
+  echo.
+  echo  The phone blocked installing over USB ^(Xiaomi / Redmi / Poco^):
+  echo   1. Settings ^> Additional settings ^> Developer options
+  echo   2. Turn ON "Install via USB" ^(it may ask you to sign in to a Mi account^)
+  echo   3. Run this file again and watch the phone - tap Install if it asks.
+  echo   4. If step 4/5 then says an account is signed in: sign OUT of the Mi account
+  echo      and run this file once more.
+)
+exit /b 0
