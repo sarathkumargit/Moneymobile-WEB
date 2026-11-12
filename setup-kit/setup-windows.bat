@@ -66,53 +66,28 @@ if !errorlevel! equ 0 (
   echo.
   echo [3/3] This phone is already set up - updating the app only...
   call :install_app
-  copy /y "%TEMP%\mm_inst.txt" "%TEMP%\mm_upd.txt" >nul
-  echo.
-  echo  =====================================================
-  findstr /I /C:"Success" "%TEMP%\mm_upd.txt" >nul
-  if !errorlevel! equ 0 (
-    set "URL=!SERVER_URL!"
-    if "!URL!"=="" (
-      for /f "usebackq delims=" %%a in (`powershell -NoProfile -Command "(Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null } | Select-Object -First 1).IPv4Address.IPAddress"`) do set "PC_IP=%%a"
-      if not "!PC_IP!"=="" set "URL=http://!PC_IP!:3000/api"
-    )
-    if not "!URL!"=="" (
-      "%ADB%" shell am start -n com.moneymobile.installment/.ui.EnrollmentActivity --es action "UPDATE_SERVER_URL" --es server_url "!URL!" >nul 2>&1
-      echo    Server address refreshed: !URL!
-    ) else (
-      "%ADB%" shell am start -n com.moneymobile.installment/.ui.SplashActivity >nul 2>&1
-    )
-    echo    DONE - !BRAND! !MODEL! updated.
-    echo    Customer, registration and lock status are unchanged.
-    echo.
-    echo    Phone still shows Pending, or you deleted it on the website?
-    choice /C RN /T 10 /D N /M "   Press R to register it again (N or wait = skip)"
-    if !errorlevel! equ 1 (
-      "%ADB%" shell am start -n com.moneymobile.installment/.ui.EnrollmentActivity --es action "REGISTER_DEVICE" --es shop_id "!SHOP_ID!" --es enroll_secret "!SHOP_SECRET!" --es server_url "!URL!" >nul 2>&1
-      echo    Registration sent. The phone appears in Devices on the website in about a minute.
-      echo    Then assign it to the customer again.
-    )
-  ) else (
-    findstr /I /C:"DOWNGRADE" "%TEMP%\mm_upd.txt" >nul
-    if !errorlevel! equ 0 ( echo    Already up to date - the phone has this version or newer. ) else ( echo    [ERROR] Update failed - see the message above. )
-  )
-  echo  =====================================================
-  echo.
-  pause & exit /b 0
+set "MM_INSTALL="
+echo !BRAND! | findstr /I "xiaomi redmi poco" >nul
+if !errorlevel! equ 0 (
+  rem Xiaomi refuses -g and often drops the USB connection right after, so skip -g entirely.
+  echo       Xiaomi phone - installing ^(tap Install on the phone if it asks^)...
+  "%ADB%" install -r MoneyMobile.apk > "%TEMP%\mm_inst.txt" 2>&1
+  findstr /C:"Success" "%TEMP%\mm_inst.txt" >nul && set "MM_INSTALL=OK"
+  type "%TEMP%\mm_inst.txt"
+  exit /b 0
 )
+"%ADB%" install -r -g MoneyMobile.apk > "%TEMP%\mm_inst.txt" 2>&1
+findstr /C:"Success" "%TEMP%\mm_inst.txt" >nul && set "MM_INSTALL=OK"
+if not defined MM_INSTALL (
+  echo       First try was refused - waiting for the phone and trying again...
+  "%ADB%" wait-for-device
+  "%ADB%" install -r MoneyMobile.apk > "%TEMP%\mm_inst.txt" 2>&1
+  findstr /C:"Success" "%TEMP%\mm_inst.txt" >nul && set "MM_INSTALL=OK"
+)
+type "%TEMP%\mm_inst.txt"
+exit /b 0
 
-echo.
-echo [3/5] New phone - installing the app...
-call :install_app
-set "MM_HAVE_APP="
-if "!MM_INSTALL!"=="OK" set "MM_HAVE_APP=new"
-if not defined MM_HAVE_APP (
-  "%ADB%" shell pm path com.moneymobile.installment 2>nul | findstr /C:"package:" >nul && set "MM_HAVE_APP=old"
-)
-if not defined MM_HAVE_APP (
-  echo.
-  echo [ERROR] Install failed - see the message above.
-  call :xiaomi_help
+:xiaomi_help
   pause & exit /b 1
 )
 if "!MM_HAVE_APP!"=="new" ( echo [OK] Installed. ) else ( echo [OK] The app is already on the phone ^(from the earlier run^) - continuing. )

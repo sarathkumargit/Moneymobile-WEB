@@ -52,10 +52,17 @@ fi
 # Mi-account setting is on, so it retries without -g. Nothing is lost: once MoneyMobile is
 # Device Owner it grants its own permissions. Same file works for every brand.
 install_apk() {
-  OUT=$("$ADB" install -r -g MoneyMobile.apk 2>&1 | tr -d '\r')
-  if ! echo "$OUT" | grep -q "Success"; then
-    echo "      First try was refused (normal on Xiaomi, Redmi and Poco) — trying again..."
+  if echo "$BRAND" | grep -qiE "xiaomi|redmi|poco"; then
+    # Xiaomi refuses -g and often drops the USB connection right after refusing it, so skip -g entirely.
+    echo "      Xiaomi phone — installing (tap Install on the phone if it asks)..."
     OUT=$("$ADB" install -r MoneyMobile.apk 2>&1 | tr -d '\r')
+  else
+    OUT=$("$ADB" install -r -g MoneyMobile.apk 2>&1 | tr -d '\r')
+    if ! echo "$OUT" | grep -q "Success"; then
+      echo "      First try was refused — waiting for the phone and trying again..."
+      "$ADB" wait-for-device
+      OUT=$("$ADB" install -r MoneyMobile.apk 2>&1 | tr -d '\r')
+    fi
   fi
   echo "$OUT"
 }
