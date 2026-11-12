@@ -48,33 +48,74 @@ if ! command -v adb >/dev/null 2>&1; then
   fi
 fi
 
-# Install the app. Tries with -g first; Xiaomi / Redmi / Poco refuse -g unless an extra
-# Mi-account setting is on, so it retries without -g. Nothing is lost: once MoneyMobile is
-# Device Owner it grants its own permissions. Same file works for every brand.
+# ── Installing the app ─────────────────────────────────────────────────────────────────────────
+# Every brand: 1) adb install (with -g, except Xiaomi — it refuses -g and drops the connection),
+# each try limited in time so a phone that never answers can't hang the setup; 2) if that fails,
+# the APK is copied to the phone and installed ON the phone (package installer). Path 2 needs no
+# Mi account and no "Install via USB" — it is how Xiaomi / Redmi / Poco always work.
+APK_ON_PHONE="/sdcard/Download/MoneyMobile.apk"
+is_xiaomi() { echo "$BRAND" | grep -qiE "xiaomi|redmi|poco"; }
+app_vc() { "$ADB" shell dumpsys package com.moneymobile.installment 2>/dev/null | tr -d '\r' | grep -m1 -o 'versionCode=[0-9]*' || true; }
+# Runs "adb <args>" for at most <secs> seconds; the output goes to $OUT.
+adb_limited() {
+  local secs=$1; shift
+  local tmp; tmp=$(mktemp -t mmadb)
+  "$ADB" "$@" >"$tmp" 2>&1 &
+  local pid=$! n=0
+  while kill -0 "$pid" 2>/dev/null; do
+    sleep 1; n=$((n+1))
+    if [ "$n" -ge "$secs" ]; then kill "$pid" 2>/dev/null || true; echo "No answer from the phone after ${secs}s." >>"$tmp"; break; fi
+  done
+  wait "$pid" 2>/dev/null || true
+  OUT=$(tr -d '\r' <"$tmp"); rm -f "$tmp"
+}
+install_on_phone() {
+  local before=$1
+  "$ADB" wait-for-device
+  echo "      Copying the app to the phone and installing it there..."
+  if ! "$ADB" push MoneyMobile.apk "$APK_ON_PHONE" >/dev/null 2>&1; then OUT="Could not copy the app to the phone."; return 1; fi
+  "$ADB" shell am start -a android.intent.action.VIEW -t application/vnd.android.package-archive -d "file://$APK_ON_PHONE" >/dev/null 2>&1 || true
+  echo ""
+  echo "      >>> ON THE PHONE: tap INSTALL (choose \"Install anyway\" if Xiaomi warns)."
+  echo "          Nothing opened? File Manager > Downloads > MoneyMobile.apk > Install"
+  echo "          (allow \"install unknown apps\" for File Manager if it asks)."
+  echo "          Waiting up to 5 minutes..."
+  local i now
+  for i in $(seq 1 100); do
+    now=$(app_vc)
+    if [ -n "$now" ] && [ "$now" != "$before" ]; then OUT="Success (installed on the phone)"; return 0; fi
+    sleep 3
+  done
+  OUT="The app was not installed on the phone within 5 minutes."; return 1
+}
 install_apk() {
-  if echo "$BRAND" | grep -qiE "xiaomi|redmi|poco"; then
-    # Xiaomi refuses -g and often drops the USB connection right after refusing it, so skip -g entirely.
-    echo "      Xiaomi phone — installing (tap Install on the phone if it asks)..."
-    OUT=$("$ADB" install -r MoneyMobile.apk 2>&1 | tr -d '\r')
+  local before; before=$(app_vc)
+  if ! is_xiaomi; then
+    adb_limited 120 install -r -g MoneyMobile.apk
+    if echo "$OUT" | grep -q "Success"; then echo "$OUT"; return 0; fi
+    echo "      First try was refused — trying again..."
+    "$ADB" wait-for-device
   else
-    OUT=$("$ADB" install -r -g MoneyMobile.apk 2>&1 | tr -d '\r')
-    if ! echo "$OUT" | grep -q "Success"; then
-      echo "      First try was refused — waiting for the phone and trying again..."
-      "$ADB" wait-for-device
-      OUT=$("$ADB" install -r MoneyMobile.apk 2>&1 | tr -d '\r')
-    fi
+    echo "      Xiaomi phone — tap Install on the phone if it asks..."
   fi
-  echo "$OUT"
+  adb_limited 90 install -r MoneyMobile.apk
+  if echo "$OUT" | grep -q "Success"; then echo "$OUT"; return 0; fi
+  echo "$OUT" | tail -2 | sed 's/^/      /'
+  if install_on_phone "$before"; then echo "$OUT"; return 0; fi
+  echo "$OUT"; return 1
+}
+# Keeps MoneyMobile running in the background: Xiaomi / Infinix / Tecno battery savers stop apps
+# otherwise, which is the usual reason a phone stops checking in.
+keep_running() {
+  "$ADB" shell dumpsys deviceidle whitelist +com.moneymobile.installment >/dev/null 2>&1 || true
+  "$ADB" shell cmd appops set com.moneymobile.installment RUN_IN_BACKGROUND allow >/dev/null 2>&1 || true
+  "$ADB" shell cmd appops set com.moneymobile.installment RUN_ANY_IN_BACKGROUND allow >/dev/null 2>&1 || true
 }
 xiaomi_help() {
-  if echo "$OUT" | grep -qiE "USER_RESTRICTED|INSTALL_CANCELED"; then
+  if is_xiaomi; then
     echo ""
-    echo " The phone blocked installing over USB (Xiaomi / Redmi / Poco):"
-    echo "  1. Sign in to a Mi account (Xiaomi requires it for the next setting)."
-    echo "  2. Settings > Additional settings > Developer options > turn ON \"Install via USB\"."
-    echo "  3. Run this file again and watch the phone — tap Install if it asks."
-    echo "  4. Step 4/5 will then stop because the Mi account is signed in. Sign OUT of the"
-    echo "     Mi account and run this file once more — it skips the install and finishes."
+    echo " Xiaomi / Redmi / Poco: keep the phone UNLOCKED and run this file again."
+    echo " When it says \"ON THE PHONE: tap INSTALL\", tap Install on the phone."
   fi
 }
 
@@ -89,6 +130,12 @@ fi
 BRAND=$("$ADB" shell getprop ro.product.manufacturer 2>/dev/null | tr -d '\r')
 MODEL=$("$ADB" shell getprop ro.product.model 2>/dev/null | tr -d '\r')
 echo "[OK] Connected: $BRAND $MODEL"
+if is_xiaomi; then
+  SECSET=$("$ADB" shell getprop persist.security.adbinput 2>/dev/null | tr -d '\r')
+  if [ "$SECSET" = "0" ]; then
+    echo "      [!] Xiaomi: \"USB debugging (Security settings)\" looks OFF — step 4 needs it ON."
+  fi
+fi
 
 # Already managed by MoneyMobile? Then this run is just an app UPDATE — registering again would
 # give the phone a new identity and break its link to the customer.
@@ -96,7 +143,7 @@ if "$ADB" shell "dumpsys device_policy | grep -A3 'Device Owner'" 2>/dev/null | 
   OLDV=$("$ADB" shell dumpsys package com.moneymobile.installment 2>/dev/null | tr -d '\r' | grep -m1 versionName | sed 's/.*=//')
   echo ""
   echo "[3/3] This phone is already set up (app v${OLDV:-?}) — updating the app only..."
-  install_apk
+  install_apk || true
   echo ""
   echo " ====================================================="
   if echo "$OUT" | grep -qi "Success"; then
@@ -112,6 +159,7 @@ if "$ADB" shell "dumpsys device_policy | grep -A3 'Device Owner'" 2>/dev/null | 
       "$ADB" shell am start -n com.moneymobile.installment/.ui.SplashActivity >/dev/null 2>&1 || true
     fi
     NEWV=$("$ADB" shell dumpsys package com.moneymobile.installment 2>/dev/null | tr -d '\r' | grep -m1 versionName | sed 's/.*=//')
+    keep_running
     echo "   DONE — $BRAND $MODEL updated to v${NEWV:-new}."
     echo "   Customer, registration and lock status are unchanged."
     echo ""
@@ -137,8 +185,11 @@ fi
 
 echo ""
 echo "[3/5] New phone — installing the app..."
-install_apk
-if echo "$OUT" | grep -q "Success"; then
+OUT=""
+if "$ADB" shell pm path com.moneymobile.installment 2>/dev/null | grep -q "package:"; then
+  # Already installed (an earlier run, or installed on the phone itself from the APK file): skip.
+  echo "[OK] The app is already on the phone — skipping the install."
+elif install_apk; then
   echo "[OK] Installed."
 elif "$ADB" shell pm path com.moneymobile.installment 2>/dev/null | grep -q "package:"; then
   # Installed on an earlier run (e.g. Xiaomi: installed with the Mi account signed in, then the
@@ -160,21 +211,29 @@ else
   OUT=$("$ADB" shell dpm set-device-owner "$PKG" 2>&1 | tr -d '\r'); echo "$OUT"
   if ! echo "$OUT" | grep -qi "Success"; then
     echo ""
-    echo "[ERROR] Could not enable management. Usually an account is still signed in."
+    echo "[ERROR] Could not enable management."
     if echo "$OUT" | grep -qi "account"; then
-      echo " Accounts on the phone (remove these in Settings > Passwords & accounts, WhatsApp can stay):"
+      echo " An account is still signed in. Remove ALL of these (Settings > Accounts), WhatsApp can stay:"
       "$ADB" shell dumpsys account 2>/dev/null | tr -d '\r' | grep "Account {" | grep -v "Session:" | sort -u | sed 's/^ */   - /'
-    fi
-    if echo "$BRAND" | grep -qiE "xiaomi|redmi|poco"; then
-      echo ""
-      echo " Xiaomi / Redmi / Poco: the app IS installed. Now sign OUT of the Mi account"
-      echo " (Settings > Xiaomi account / Mi Account > Sign out, and let it turn off Find device),"
-      echo " then run this file again. It skips the install and finishes steps 4 and 5."
+      if is_xiaomi; then
+        echo " Xiaomi account: Settings > Xiaomi account > Sign out (let it turn off Find device)."
+      fi
+      echo " Then run this file again — the app is already installed, so it continues from here."
+    elif echo "$OUT" | grep -qiE "provisioned|already (has|set)|users|device owner is already"; then
+      echo " This phone was already set up before (or has a second user / Second space)."
+      echo " Factory reset it, skip all accounts, and run this file again."
+    elif is_xiaomi; then
+      echo " Xiaomi / Redmi / Poco: Developer options > turn ON \"USB debugging (Security settings)\"."
+      echo " Xiaomi asks you to sign in to a Mi account to switch it on: sign in, switch it on,"
+      echo " then sign OUT again (Settings > Xiaomi account > Sign out) and run this file again."
+    else
+      echo " See the message above. Usually: an account is signed in, or the phone was already set up."
     fi
     read -n 1 -s -r -p "Press any key to close."; exit 1
   fi
 fi
 
+keep_running
 echo ""
 echo "[5/5] Registering the phone with the shop..."
 # Server address for the phone. config.txt may set SERVER_URL (e.g. http://192.168.1.20:3000/api).

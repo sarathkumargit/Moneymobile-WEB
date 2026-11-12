@@ -66,28 +66,58 @@ if !errorlevel! equ 0 (
   echo.
   echo [3/3] This phone is already set up - updating the app only...
   call :install_app
-set "MM_INSTALL="
-echo !BRAND! | findstr /I "xiaomi redmi poco" >nul
-if !errorlevel! equ 0 (
-  rem Xiaomi refuses -g and often drops the USB connection right after, so skip -g entirely.
-  echo       Xiaomi phone - installing ^(tap Install on the phone if it asks^)...
-  "%ADB%" install -r MoneyMobile.apk > "%TEMP%\mm_inst.txt" 2>&1
-  findstr /C:"Success" "%TEMP%\mm_inst.txt" >nul && set "MM_INSTALL=OK"
-  type "%TEMP%\mm_inst.txt"
-  exit /b 0
+  copy /y "%TEMP%\mm_inst.txt" "%TEMP%\mm_upd.txt" >nul
+  echo.
+  echo  =====================================================
+  findstr /I /C:"Success" "%TEMP%\mm_upd.txt" >nul
+  if !errorlevel! equ 0 (
+    set "URL=!SERVER_URL!"
+    if "!URL!"=="" (
+      for /f "usebackq delims=" %%a in (`powershell -NoProfile -Command "(Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null } | Select-Object -First 1).IPv4Address.IPAddress"`) do set "PC_IP=%%a"
+      if not "!PC_IP!"=="" set "URL=http://!PC_IP!:3000/api"
+    )
+    if not "!URL!"=="" (
+      "%ADB%" shell am start -n com.moneymobile.installment/.ui.EnrollmentActivity --es action "UPDATE_SERVER_URL" --es server_url "!URL!" >nul 2>&1
+      echo    Server address refreshed: !URL!
+    ) else (
+      "%ADB%" shell am start -n com.moneymobile.installment/.ui.SplashActivity >nul 2>&1
+    )
+    call :keep_running
+    echo    DONE - !BRAND! !MODEL! updated.
+    echo    Customer, registration and lock status are unchanged.
+    echo.
+    echo    Phone still shows Pending, or you deleted it on the website?
+    choice /C RN /T 10 /D N /M "   Press R to register it again (N or wait = skip)"
+    if !errorlevel! equ 1 (
+      "%ADB%" shell am start -n com.moneymobile.installment/.ui.EnrollmentActivity --es action "REGISTER_DEVICE" --es shop_id "!SHOP_ID!" --es enroll_secret "!SHOP_SECRET!" --es server_url "!URL!" >nul 2>&1
+      echo    Registration sent. The phone appears in Devices on the website in about a minute.
+      echo    Then assign it to the customer again.
+    )
+  ) else (
+    findstr /I /C:"DOWNGRADE" "%TEMP%\mm_upd.txt" >nul
+    if !errorlevel! equ 0 ( echo    Already up to date - the phone has this version or newer. ) else ( echo    [ERROR] Update failed - see the message above. )
+  )
+  echo  =====================================================
+  echo.
+  pause & exit /b 0
 )
-"%ADB%" install -r -g MoneyMobile.apk > "%TEMP%\mm_inst.txt" 2>&1
-findstr /C:"Success" "%TEMP%\mm_inst.txt" >nul && set "MM_INSTALL=OK"
-if not defined MM_INSTALL (
-  echo       First try was refused - waiting for the phone and trying again...
-  "%ADB%" wait-for-device
-  "%ADB%" install -r MoneyMobile.apk > "%TEMP%\mm_inst.txt" 2>&1
-  findstr /C:"Success" "%TEMP%\mm_inst.txt" >nul && set "MM_INSTALL=OK"
-)
-type "%TEMP%\mm_inst.txt"
-exit /b 0
 
-:xiaomi_help
+echo.
+echo [3/5] New phone - installing the app...
+set "MM_HAVE_APP="
+rem Already installed ^(an earlier run, or installed on the phone itself from the APK file^): skip.
+"%ADB%" shell pm path com.moneymobile.installment 2>nul | findstr /C:"package:" >nul && set "MM_HAVE_APP=old"
+if not defined MM_HAVE_APP (
+  call :install_app
+  if "!MM_INSTALL!"=="OK" set "MM_HAVE_APP=new"
+)
+if not defined MM_HAVE_APP (
+  "%ADB%" shell pm path com.moneymobile.installment 2>nul | findstr /C:"package:" >nul && set "MM_HAVE_APP=old"
+)
+if not defined MM_HAVE_APP (
+  echo.
+  echo [ERROR] Install failed - see the message above.
+  call :xiaomi_help
   pause & exit /b 1
 )
 if "!MM_HAVE_APP!"=="new" ( echo [OK] Installed. ) else ( echo [OK] The app is already on the phone ^(from the earlier run^) - continuing. )
@@ -103,20 +133,29 @@ if not defined ALREADY (
   findstr /I /C:"Success" "%TEMP%\mm_dpm.txt" >nul
   if !errorlevel! neq 0 (
     echo.
-    echo [ERROR] Could not enable management. Usually an account is still signed in.
-    echo  Remove accounts in Settings ^> Passwords ^& accounts ^(WhatsApp can stay^), then run again:
-    "%ADB%" shell dumpsys account 2>nul | findstr /C:"Account {" | findstr /V /C:"Session:"
-    echo !BRAND! | findstr /I "xiaomi redmi poco" >nul
-    if !errorlevel! equ 0 (
-      echo.
-      echo  Xiaomi / Redmi / Poco: the app IS installed. Now sign OUT of the Mi account
-      echo  ^(Settings ^> Xiaomi account ^> Sign out, and let it turn off Find device^),
-      echo  then run this file again. It skips the install and finishes steps 4 and 5.
+    echo [ERROR] Could not enable management.
+    set "MM_WHY="
+    findstr /I /C:"account" "%TEMP%\mm_dpm.txt" >nul && set "MM_WHY=account"
+    if not defined MM_WHY findstr /I /C:"provisioned" /C:"already" /C:"users" "%TEMP%\mm_dpm.txt" >nul && set "MM_WHY=used"
+    if "!MM_WHY!"=="account" (
+      echo  An account is still signed in. Remove ALL of these ^(Settings ^> Accounts^), WhatsApp can stay:
+      "%ADB%" shell dumpsys account 2>nul | findstr /C:"Account {" | findstr /V /C:"Session:"
+      echo  Xiaomi account: Settings ^> Xiaomi account ^> Sign out ^(let it turn off Find device^).
+      echo  Then run this file again - the app is already installed, so it continues from here.
+    ) else if "!MM_WHY!"=="used" (
+      echo  This phone was already set up before ^(or has a second user / Second space^).
+      echo  Factory reset it, skip all accounts, and run this file again.
+    ) else (
+      echo  Xiaomi / Redmi / Poco: Developer options ^> turn ON "USB debugging ^(Security settings^)".
+      echo  Xiaomi asks you to sign in to a Mi account to switch it on: sign in, switch it on,
+      echo  then sign OUT again ^(Settings ^> Xiaomi account ^> Sign out^) and run this file again.
+      echo  Other brands: see the message above.
     )
     pause & exit /b 1
   )
 )
 
+call :keep_running
 echo.
 echo [5/5] Registering the phone with the shop...
 "%ADB%" logcat -c >nul 2>&1
@@ -180,30 +219,98 @@ pause
 exit /b 0
 
 :: -- Install the app ----------------------------------------------------------
-:: Tries with -g first. Xiaomi / Redmi / Poco refuse -g unless an extra Mi-account setting
-:: is on, so it then retries without -g. Nothing is lost: once MoneyMobile is Device Owner
-:: it grants its own permissions. Same file works for Samsung, Infinix, Tecno, Xiaomi...
+:: Every brand: 1) adb install (with -g, except Xiaomi: it refuses -g and drops the connection),
+:: each try limited in time so a phone that never answers can't hang the setup; 2) if that fails,
+:: the APK is copied to the phone and installed ON the phone. Path 2 needs no Mi account and no
+:: "Install via USB" - it is how Xiaomi / Redmi / Poco always work. Nothing is lost without -g:
+:: once MoneyMobile is Device Owner it grants its own permissions.
 :install_app
 set "MM_INSTALL="
-"%ADB%" install -r -g MoneyMobile.apk > "%TEMP%\mm_inst.txt" 2>&1
-findstr /C:"Success" "%TEMP%\mm_inst.txt" >nul && set "MM_INSTALL=OK"
-if not defined MM_INSTALL (
-  echo       First try was refused ^(normal on Xiaomi, Redmi and Poco^) - trying again...
-  "%ADB%" install -r MoneyMobile.apk > "%TEMP%\mm_inst.txt" 2>&1
-  findstr /C:"Success" "%TEMP%\mm_inst.txt" >nul && set "MM_INSTALL=OK"
+call :app_vc MM_VC_BEFORE
+echo !BRAND! | findstr /I "xiaomi redmi poco" >nul
+if !errorlevel! neq 0 (
+  call :adb_install_limited "-g" 120
+  findstr /C:"Success" "%TEMP%\mm_inst.txt" >nul 2>&1 && set "MM_INSTALL=OK"
+  if not defined MM_INSTALL (
+    echo       First try was refused - trying again...
+    "%ADB%" wait-for-device
+  )
+) else (
+  echo       Xiaomi phone - tap Install on the phone if it asks...
 )
+if not defined MM_INSTALL (
+  call :adb_install_limited "" 90
+  findstr /C:"Success" "%TEMP%\mm_inst.txt" >nul 2>&1 && set "MM_INSTALL=OK"
+)
+if not defined MM_INSTALL call :install_on_phone
 type "%TEMP%\mm_inst.txt"
 exit /b 0
 
+:: adb install, at most %2 seconds (output in mm_inst.txt).
+:adb_install_limited
+del /q "%TEMP%\mm_inst.txt" "%TEMP%\mm_inst.done" 2>nul
+start "" /b cmd /c ""%ADB%" install -r %~1 MoneyMobile.apk > "%TEMP%\mm_inst.txt" 2>&1 & echo done> "%TEMP%\mm_inst.done""
+set /a MM_T=0
+:ail_wait
+if exist "%TEMP%\mm_inst.done" exit /b 0
+if !MM_T! geq %~2 (
+  taskkill /f /im adb.exe >nul 2>&1
+  timeout /t 2 /nobreak >nul
+  echo No answer from the phone after %~2 seconds.>> "%TEMP%\mm_inst.txt"
+  "%ADB%" start-server >nul 2>&1
+  exit /b 0
+)
+timeout /t 2 /nobreak >nul
+set /a MM_T+=2
+goto ail_wait
+
+:: Copy the APK to the phone and let the phone's own installer install it.
+:install_on_phone
+"%ADB%" wait-for-device
+echo       Copying the app to the phone and installing it there...
+"%ADB%" push MoneyMobile.apk /sdcard/Download/MoneyMobile.apk > "%TEMP%\mm_push.txt" 2>&1
+findstr /I /C:"pushed" "%TEMP%\mm_push.txt" >nul || ( echo Could not copy the app to the phone.> "%TEMP%\mm_inst.txt" & exit /b 0 )
+"%ADB%" shell am start -a android.intent.action.VIEW -t application/vnd.android.package-archive -d file:///sdcard/Download/MoneyMobile.apk >nul 2>&1
+echo.
+echo       ^>^>^> ON THE PHONE: tap INSTALL ^(choose "Install anyway" if Xiaomi warns^).
+echo           Nothing opened? File Manager ^> Downloads ^> MoneyMobile.apk ^> Install
+echo           ^(allow "install unknown apps" for File Manager if it asks^).
+echo           Waiting up to 5 minutes...
+set /a MM_T=0
+:iop_wait
+call :app_vc MM_VC_NOW
+if defined MM_VC_NOW if not "!MM_VC_NOW!"=="!MM_VC_BEFORE!" (
+  echo Success ^(installed on the phone^)> "%TEMP%\mm_inst.txt"
+  set "MM_INSTALL=OK"
+  exit /b 0
+)
+if !MM_T! geq 300 (
+  echo The app was not installed on the phone within 5 minutes.> "%TEMP%\mm_inst.txt"
+  exit /b 0
+)
+timeout /t 3 /nobreak >nul
+set /a MM_T+=3
+goto iop_wait
+
+:: Installed app's versionCode into the variable named %1 (empty when not installed).
+:app_vc
+set "%~1="
+for /f "tokens=2 delims== " %%v in ('"%ADB%" shell dumpsys package com.moneymobile.installment 2^>nul ^| findstr /C:"versionCode="') do if not defined %~1 set "%~1=%%v"
+exit /b 0
+
+:: Keeps MoneyMobile running in the background (Xiaomi / Infinix / Tecno battery savers stop apps
+:: otherwise, the usual reason a phone stops checking in).
+:keep_running
+"%ADB%" shell dumpsys deviceidle whitelist +com.moneymobile.installment >nul 2>&1
+"%ADB%" shell cmd appops set com.moneymobile.installment RUN_IN_BACKGROUND allow >nul 2>&1
+"%ADB%" shell cmd appops set com.moneymobile.installment RUN_ANY_IN_BACKGROUND allow >nul 2>&1
+exit /b 0
+
 :xiaomi_help
-findstr /I /C:"USER_RESTRICTED" /C:"INSTALL_CANCELED" "%TEMP%\mm_inst.txt" >nul
+echo !BRAND! | findstr /I "xiaomi redmi poco" >nul
 if !errorlevel! equ 0 (
   echo.
-  echo  The phone blocked installing over USB ^(Xiaomi / Redmi / Poco^):
-  echo   1. Sign in to a Mi account ^(Xiaomi requires it for the next setting^).
-  echo   2. Settings ^> Additional settings ^> Developer options ^> turn ON "Install via USB".
-  echo   3. Run this file again and watch the phone - tap Install if it asks.
-  echo   4. Step 4/5 will then stop because the Mi account is signed in. Sign OUT of the
-  echo      Mi account and run this file once more - it skips the install and finishes.
+  echo  Xiaomi / Redmi / Poco: keep the phone UNLOCKED and run this file again.
+  echo  When it says "ON THE PHONE: tap INSTALL", tap Install on the phone.
 )
 exit /b 0

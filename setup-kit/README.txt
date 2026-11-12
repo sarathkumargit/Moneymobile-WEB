@@ -14,10 +14,13 @@ NEW / FACTORY-RESET PHONE — on the phone first
   3. Settings > About phone > Software information > tap "Build number" 7 times,
      then Settings > Developer options > turn ON "USB debugging".
   4. Put the customer's SIM in (this becomes the approved SIM).
-  Xiaomi / Redmi / Poco only: sign in to a Mi account, then in Developer options turn ON
-     "Install via USB". Run the setup file: it installs the app, then stops at step 4/5 because
-     of the Mi account. Sign OUT of the Mi account (Find device turns off) and run it again —
-     it skips the install and finishes.
+  Xiaomi / Redmi / Poco only (one time, before running the setup file):
+     a) Developer options > turn ON "USB debugging (Security settings)". Xiaomi asks you to sign in
+        to a Mi account to switch it on - sign in, switch it on, then SIGN OUT again
+        (Settings > Xiaomi account > Sign out, let it turn off Find device). Accounts must be empty.
+     b) You do NOT need "Install via USB". If the setup file says "ON THE PHONE: tap INSTALL",
+        tap Install on the phone (or File Manager > Downloads > MoneyMobile.apk > Install).
+     c) Developer options > "Stay awake" ON, and keep the phone unlocked during setup.
 
 THEN
   Plug the phone in, tap "Allow" on the phone, run the setup file, wait for DONE.
