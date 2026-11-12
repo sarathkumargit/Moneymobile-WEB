@@ -71,15 +71,23 @@ adb_limited() {
 }
 install_on_phone() {
   local before=$1
-  "$ADB" wait-for-device
   echo "      Copying the app to the phone and installing it there..."
-  if ! "$ADB" push MoneyMobile.apk "$APK_ON_PHONE" >/dev/null 2>&1; then OUT="Could not copy the app to the phone."; return 1; fi
-  "$ADB" shell am start -a android.intent.action.VIEW -t application/vnd.android.package-archive -d "file://$APK_ON_PHONE" >/dev/null 2>&1 || true
-  echo ""
-  echo "      >>> ON THE PHONE: tap INSTALL (choose \"Install anyway\" if Xiaomi warns)."
-  echo "          Nothing opened? File Manager > Downloads > MoneyMobile.apk > Install"
-  echo "          (allow \"install unknown apps\" for File Manager if it asks)."
-  echo "          Waiting up to 5 minutes..."
+  local web=""; [ -n "$SERVER_URL" ] && web="${SERVER_URL%/}"; web="${web%/api}"
+  adb_limited 60 push MoneyMobile.apk "$APK_ON_PHONE"
+  if echo "$OUT" | grep -qi "pushed"; then
+    "$ADB" shell am start -a android.intent.action.VIEW -t application/vnd.android.package-archive -d "file://$APK_ON_PHONE" >/dev/null 2>&1 || true
+    echo ""
+    echo "      >>> ON THE PHONE: tap INSTALL (choose \"Install anyway\" if Xiaomi warns)."
+    echo "          Nothing opened? File Manager > Downloads > MoneyMobile.apk > Install"
+    echo "          (allow \"install unknown apps\" for File Manager if it asks)."
+  else
+    echo ""
+    echo "      >>> The USB connection is not answering. Install the app ON THE PHONE instead:"
+    if [ -n "$web" ]; then echo "          open Chrome on the phone and go to:  $web/api/setup-kit/apk?src=bundled"
+    else echo "          open Chrome on the phone and download MoneyMobile.apk from your MoneyMobile website (Install App)"; fi
+    echo "          then open the download and tap Install (allow Chrome to install apps if it asks)."
+  fi
+  echo "          Waiting up to 5 minutes (keep the cable plugged in)..."
   local i now
   for i in $(seq 1 100); do
     now=$(app_vc)
@@ -94,7 +102,7 @@ install_apk() {
     adb_limited 120 install -r -g MoneyMobile.apk
     if echo "$OUT" | grep -q "Success"; then echo "$OUT"; return 0; fi
     echo "      First try was refused — trying again..."
-    "$ADB" wait-for-device
+    adb_limited 30 wait-for-device
   else
     echo "      Xiaomi phone — tap Install on the phone if it asks..."
   fi
@@ -127,8 +135,14 @@ if [ "$STATE" != "device" ]; then
   echo "[ERROR] Phone not ready (state: $STATE). Enable USB Debugging and tap Allow on the phone."
   read -n 1 -s -r -p "Press any key to close."; exit 1
 fi
-BRAND=$("$ADB" shell getprop ro.product.manufacturer 2>/dev/null | tr -d '\r')
-MODEL=$("$ADB" shell getprop ro.product.model 2>/dev/null | tr -d '\r')
+# The phone can take a few seconds to answer right after connecting: ask again until it does.
+BRAND=""; MODEL=""
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  BRAND=$("$ADB" shell getprop ro.product.manufacturer 2>/dev/null | tr -d '\r' || true)
+  MODEL=$("$ADB" shell getprop ro.product.model 2>/dev/null | tr -d '\r' || true)
+  [ -n "$BRAND" ] && break
+  sleep 2
+done
 echo "[OK] Connected: $BRAND $MODEL"
 if is_xiaomi; then
   SECSET=$("$ADB" shell getprop persist.security.adbinput 2>/dev/null | tr -d '\r')

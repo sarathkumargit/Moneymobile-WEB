@@ -56,8 +56,13 @@ if not "!DEVICE_STATE!"=="device" (
   echo [ERROR] Phone not ready. Enable USB Debugging and tap Allow on the phone.
   pause & exit /b 1
 )
+rem The phone can take a few seconds to answer right after connecting: ask again until it does.
+set "BRAND=" & set "MODEL=" & set /a MM_TRY=0
+:get_brand
 for /f "delims=" %%i in ('"%ADB%" shell getprop ro.product.manufacturer 2^>nul') do set BRAND=%%i
 for /f "delims=" %%i in ('"%ADB%" shell getprop ro.product.model 2^>nul') do set MODEL=%%i
+set /a MM_TRY+=1
+if not defined BRAND if !MM_TRY! lss 10 ( timeout /t 2 /nobreak >nul & goto get_brand )
 echo [OK] Connected: !BRAND! !MODEL!
 
 :: Already managed by MoneyMobile? Then this run is just an app UPDATE (keeps customer + lock status).
@@ -233,7 +238,7 @@ if !errorlevel! neq 0 (
   findstr /C:"Success" "%TEMP%\mm_inst.txt" >nul 2>&1 && set "MM_INSTALL=OK"
   if not defined MM_INSTALL (
     echo       First try was refused - trying again...
-    "%ADB%" wait-for-device
+    timeout /t 3 /nobreak >nul
   )
 ) else (
   echo       Xiaomi phone - tap Install on the phone if it asks...
@@ -266,16 +271,25 @@ goto ail_wait
 
 :: Copy the APK to the phone and let the phone's own installer install it.
 :install_on_phone
-"%ADB%" wait-for-device
 echo       Copying the app to the phone and installing it there...
-"%ADB%" push MoneyMobile.apk /sdcard/Download/MoneyMobile.apk > "%TEMP%\mm_push.txt" 2>&1
-findstr /I /C:"pushed" "%TEMP%\mm_push.txt" >nul || ( echo Could not copy the app to the phone.> "%TEMP%\mm_inst.txt" & exit /b 0 )
-"%ADB%" shell am start -a android.intent.action.VIEW -t application/vnd.android.package-archive -d file:///sdcard/Download/MoneyMobile.apk >nul 2>&1
-echo.
-echo       ^>^>^> ON THE PHONE: tap INSTALL ^(choose "Install anyway" if Xiaomi warns^).
-echo           Nothing opened? File Manager ^> Downloads ^> MoneyMobile.apk ^> Install
-echo           ^(allow "install unknown apps" for File Manager if it asks^).
-echo           Waiting up to 5 minutes...
+set "MM_WEB=!SERVER_URL!"
+if "!MM_WEB:~-1!"=="/" set "MM_WEB=!MM_WEB:~0,-1!"
+if /i "!MM_WEB:~-4!"=="/api" set "MM_WEB=!MM_WEB:~0,-4!"
+call :adb_push_limited 60
+findstr /I /C:"pushed" "%TEMP%\mm_push.txt" >nul 2>&1
+if !errorlevel! equ 0 (
+  "%ADB%" shell am start -a android.intent.action.VIEW -t application/vnd.android.package-archive -d file:///sdcard/Download/MoneyMobile.apk >nul 2>&1
+  echo.
+  echo       ^>^>^> ON THE PHONE: tap INSTALL ^(choose "Install anyway" if Xiaomi warns^).
+  echo           Nothing opened? File Manager ^> Downloads ^> MoneyMobile.apk ^> Install
+  echo           ^(allow "install unknown apps" for File Manager if it asks^).
+) else (
+  echo.
+  echo       ^>^>^> The USB connection is not answering. Install the app ON THE PHONE instead:
+  if defined MM_WEB ( echo           open Chrome on the phone and go to:  !MM_WEB!/api/setup-kit/apk?src=bundled ) else ( echo           open Chrome on the phone and download MoneyMobile.apk from your MoneyMobile website ^(Install App^) )
+  echo           then open the download and tap Install ^(allow Chrome to install apps if it asks^).
+)
+echo           Waiting up to 5 minutes ^(keep the cable plugged in^)...
 set /a MM_T=0
 :iop_wait
 call :app_vc MM_VC_NOW
@@ -291,6 +305,23 @@ if !MM_T! geq 300 (
 timeout /t 3 /nobreak >nul
 set /a MM_T+=3
 goto iop_wait
+
+:: adb push of the APK, at most %1 seconds (output in mm_push.txt).
+:adb_push_limited
+del /q "%TEMP%\mm_push.txt" "%TEMP%\mm_push.done" 2>nul
+start "" /b cmd /c ""%ADB%" push MoneyMobile.apk /sdcard/Download/MoneyMobile.apk > "%TEMP%\mm_push.txt" 2>&1 & echo done> "%TEMP%\mm_push.done""
+set /a MM_T=0
+:apl_wait
+if exist "%TEMP%\mm_push.done" exit /b 0
+if !MM_T! geq %~1 (
+  taskkill /f /im adb.exe >nul 2>&1
+  timeout /t 2 /nobreak >nul
+  "%ADB%" start-server >nul 2>&1
+  exit /b 0
+)
+timeout /t 2 /nobreak >nul
+set /a MM_T+=2
+goto apl_wait
 
 :: Installed app's versionCode into the variable named %1 (empty when not installed).
 :app_vc
