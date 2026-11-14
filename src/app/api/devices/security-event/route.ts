@@ -33,8 +33,11 @@ export async function POST(req: Request) {
         .gt("created_at", since).limit(1).maybeSingle(),
       // An offline unlock code issued after the SIM was pulled is also staff deciding to unlock,
       // so a late SIM alert must not re-lock the phone. (Codes no longer queue an UNLOCK command.)
-      admin.from("temporary_unlock_keys").select("id")
-        .eq("device_id", enr.device_id).gt("created_at", since).limit(1).maybeSingle(),
+      // A phone with no device record (not linked yet) can't have a code: skip instead of querying "= null".
+      enr.device_id
+        ? admin.from("temporary_unlock_keys").select("id")
+            .eq("device_id", enr.device_id).gt("created_at", since).limit(1).maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
     unlockedSince = !!laterCmd || !!laterKey;
   }
@@ -59,9 +62,25 @@ export async function POST(req: Request) {
     const details = isCode
       ? `${b.details ?? "Unlocked with a shop unlock code"} — ${graceOpen ? `open until ${clock(graceUntil)}, then locks again if still unpaid` : `reported late; the ${OFFLINE_UNLOCK_GRACE_MINUTES}-minute window had already ended`}`
       : b.details ?? null;
+    // Cross-check: was an unlock code really issued for this phone shortly before it was typed? Codes
+    // are only valid for 30 minutes (+5 min clock slack), so one must have been made in that window.
+    // If none was, the event is left "new" for staff to look at. Nothing is blocked — the phone already
+    // unlocked itself — this only makes an unexpected unlock visible.
+    let unverified = false;
+    if (isCode && enr.device_id) {
+      const typedAt = Math.min(detectedAtMs ?? nowMs, nowMs);
+      const { data: issued, error: keyErr } = await admin.from("temporary_unlock_keys").select("id")
+        .eq("device_id", enr.device_id)
+        .gte("created_at", new Date(typedAt - 45 * 60_000).toISOString())
+        .lte("created_at", new Date(typedAt + 10 * 60_000).toISOString())
+        .limit(1).maybeSingle();
+      unverified = !keyErr && !issued;
+    }
     await admin.from("device_security_events").insert({
       shop_id: enr.shop_id, enrollment_id: enr.id, device_id: enr.device_id,
-      event_type: type, details, status: isCode ? "resolved" : "new",
+      event_type: type,
+      details: unverified ? `${details ?? ""} — ⚠ no unlock code was created for this phone on the website around that time; please check`.trim() : details,
+      status: isCode ? (unverified ? "new" : "resolved") : "new",
     });
     // The customer unlocked the phone with a shop-issued offline code. Clear the restriction so the
     // next heartbeat's reconcile keeps it unlocked instead of re-locking. Generating the code no

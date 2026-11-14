@@ -6,8 +6,12 @@ import { createHmac } from "crypto";
 // to): it is derived from a secret only this server holds, per phone, and is handed to the phone
 // once. Keep in sync with util/CommandSig.kt on the phone.
 
+// IMPORTANT: every phone keeps the key it was given and is never sent a new one, so this secret must
+// NEVER change. It used to be only the Supabase service-role key — rotating that key would have made
+// every phone ignore every command. Set COMMAND_SIGNING_SECRET to the CURRENT service-role key value
+// (copy it exactly); after that the Supabase key can be rotated safely. Unset = same as before.
 function secret(): string | null {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || null;
+  return process.env.COMMAND_SIGNING_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || null;
 }
 
 /** Per-phone key (hex), or null when the server secret is not configured. */

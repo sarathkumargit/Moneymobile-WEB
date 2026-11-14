@@ -15,7 +15,9 @@ export async function login(formData: FormData) {
   const supabase = createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
-    redirect(`/login?error=${encodeURIComponent("Invalid email or password")}`);
+    // A deactivated employee is also blocked at the login service ("banned"): keep the clear message.
+    const msg = /banned/i.test(error.message) ? "Your account is disabled" : "Invalid email or password";
+    redirect(`/login?error=${encodeURIComponent(msg)}`);
   }
 
   const {

@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     sim_iccid: di.sim_iccid ?? null, sim_operator: di.sim_operator ?? null,
     last_sync: new Date().toISOString(), updated_at: new Date().toISOString(),
     // On a resale, wipe the stale location + management + old agreement link.
-    ...(wasReleased ? { last_lat: null, last_lng: null, location_accuracy: null, location_at: null, management_active: false, management_checked_at: null, agreement_id: null } : {}),
+    ...(wasReleased ? { last_lat: null, last_lng: null, location_accuracy: null, location_at: null, management_active: false, management_checked_at: null, agreement_id: null, customer_id: null } : {}),
   };
   if (enrId) {
     await admin.from("device_enrollments").update(row).eq("id", enrId);

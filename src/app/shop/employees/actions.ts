@@ -84,6 +84,10 @@ export async function setEmployeeActive(fd: FormData): Promise<void> {
   const admin = await guardEmployee(s.profile.shop_id, id);
   if (!admin) return;
   await admin.from("profiles").update({ status: active ? "active" : "disabled" }).eq("id", id);
+  // Also stop/allow sign-in at the login service itself, so a disabled employee's existing session can't
+  // keep refreshing and reach the database directly. Best-effort: the profile status above still applies.
+  const { error: banErr } = await admin.auth.admin.updateUserById(id, { ban_duration: active ? "none" : "876000h" });
+  if (banErr) console.warn("[employees] sign-in block not updated:", banErr.message);
   await admin.from("audit_logs").insert({ shop_id: s.profile.shop_id, actor_id: s.user.id, action: active ? "activate_employee" : "deactivate_employee", entity: "profiles", entity_id: id, details: {} });
   setFlash(active ? "Employee activated." : "Employee deactivated.");
   revalidatePath("/shop/employees");
@@ -99,11 +103,23 @@ export async function deleteEmployee(_p: ActionState, fd: FormData): Promise<Act
   if (!id) return { error: "Missing employee." };
   const admin = await guardEmployee(s.profile.shop_id, id);
   if (!admin) return { error: "Employee not found." };
-  // Release device / customer assignments that point at this employee first.
+  // Release device / customer assignments that point at this employee first (remembering them, so
+  // they can be put back if the delete is refused).
+  const [{ data: devs }, { data: custs }] = await Promise.all([
+    admin.from("devices").select("id").eq("assigned_employee_id", id),
+    admin.from("customers").select("id").eq("assigned_employee_id", id),
+  ]);
   await admin.from("devices").update({ assigned_employee_id: null }).eq("assigned_employee_id", id);
   await admin.from("customers").update({ assigned_employee_id: null }).eq("assigned_employee_id", id);
   const { error } = await admin.auth.admin.deleteUser(id);
-  if (error) return { error: "This employee has records in the system, so they can't be deleted. Deactivate them instead." };
+  if (error) {
+    // Not deleted: give the employee their phones and customers back.
+    const devIds = (devs ?? []).map((d: { id: string }) => d.id);
+    const custIds = (custs ?? []).map((c: { id: string }) => c.id);
+    if (devIds.length) await admin.from("devices").update({ assigned_employee_id: id }).in("id", devIds);
+    if (custIds.length) await admin.from("customers").update({ assigned_employee_id: id }).in("id", custIds);
+    return { error: "This employee has records in the system, so they can't be deleted. Deactivate them instead." };
+  }
   revalidatePath("/shop/employees"); revalidatePath("/shop/devices"); revalidatePath("/shop/customers");
   return { success: "Employee deleted." };
 }

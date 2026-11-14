@@ -102,6 +102,20 @@ export async function createAgreement(_p: ActionState, fd: FormData): Promise<Ac
     if (dev && dev.shop_id === s.profile.shop_id) {
       const { error: linkErr } = await admin.from("devices").update({ status: "under_installment", customer_id }).eq("id", device_id);
       if (linkErr) return { error: `Agreement created, but linking the phone failed: ${linkErr.message}` };
+      // A phone that is already registered (e.g. a resold phone) must follow THIS agreement from its
+      // next check-in, not one from an earlier sale.
+      // Only when its current link is empty or points at a finished sale (released, cancelled or fully paid)
+      // — a phone that still owes on another agreement keeps following that one, exactly as before.
+      const { data: enrs } = await admin.from("device_enrollments").select("id,agreement_id")
+        .eq("device_id", device_id).in("status", ["pending", "enrolled"]);
+      for (const e of (enrs ?? []) as { id: string; agreement_id: string | null }[]) {
+        let stale = !e.agreement_id;
+        if (e.agreement_id) {
+          const { data: cur } = await admin.from("installment_agreements").select("status").eq("id", e.agreement_id).maybeSingle();
+          stale = !cur || ["released", "cancelled", "completed"].includes(String(cur.status));
+        }
+        if (stale) await admin.from("device_enrollments").update({ agreement_id: agr.id, customer_id }).eq("id", e.id);
+      }
     }
   }
   await supabase.from("audit_logs").insert({ shop_id: s.profile.shop_id, actor_id: s.user.id, action: "create_agreement", entity: "installment_agreements", entity_id: agr.id, details: { selling, months, monthly: calc.monthly, totalRepayment: calc.totalRepayment, model_risk: riskLevel } });

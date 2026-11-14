@@ -18,6 +18,14 @@ export async function recordPayment(_p: ActionState, fd: FormData): Promise<Acti
   const supabase = createClient();
   const { data: agr, error: aErr } = await supabase.from("installment_agreements").select("outstanding_balance, customer_id, device_id").eq("id", agreement_id).single();
   if (aErr || !agr) return { error: "Agreement not found." };
+  // A payment larger than what is owed can't be recorded correctly (the balance can't go below 0), and is
+  // usually a typo — e.g. an extra zero would mark the phone fully paid and allow its release.
+  const owedNow = Math.max(0, Number(agr.outstanding_balance || 0));
+  if (amount > owedNow + 0.005) {
+    return { error: owedNow > 0
+      ? `That is more than the balance (Rs ${owedNow.toLocaleString()}). Record at most Rs ${owedNow.toLocaleString()}.`
+      : "This agreement is already fully paid — nothing is owed." };
+  }
   // Record which phone this payment is for (model + IMEI), so it stays on the payment for good.
   let snap = await deviceSnapshot(supabase, (agr as { device_id?: string | null }).device_id);
   if (!snap.device_imei) {
@@ -32,10 +40,27 @@ export async function recordPayment(_p: ActionState, fd: FormData): Promise<Acti
   let { error: pErr } = await supabase.from("payment_transactions").insert({ ...payment, ...snap });
   if (missingSnapshotColumn(pErr)) ({ error: pErr } = await supabase.from("payment_transactions").insert(payment)); // migration 0016 not run yet
   if (pErr) return { error: pErr.message };
-  const newBalance = Math.max(Number(agr.outstanding_balance) - amount, 0);
-  await supabase.from("installment_agreements").update({
-    outstanding_balance: newBalance, ...(newBalance === 0 ? { status: "completed" } : {}),
-  }).eq("id", agreement_id);
+  // Lower the balance safely when two staff record payments at the same moment: only write if the
+  // balance is still the one we read; otherwise read it again and retry (no payment is lost).
+  let current = Number(agr.outstanding_balance);
+  let newBalance = Math.max(Math.round((current - amount) * 100) / 100, 0);
+  let written = false;
+  for (let attempt = 0; attempt < 5 && !written; attempt++) {
+    const { data: upd, error: uErr } = await supabase.from("installment_agreements").update({
+      outstanding_balance: newBalance, ...(newBalance === 0 ? { status: "completed" } : {}),
+    }).eq("id", agreement_id).eq("outstanding_balance", current).select("id");
+    if (uErr) break; // unexpected database answer: use the plain write below
+    if (upd && upd.length) { written = true; break; }
+    const { data: again } = await supabase.from("installment_agreements").select("outstanding_balance").eq("id", agreement_id).single();
+    current = Number(again?.outstanding_balance ?? current);
+    newBalance = Math.max(Math.round((current - amount) * 100) / 100, 0);
+  }
+  if (!written) {
+    // Same single write as before, so the payment always counts against the balance.
+    await supabase.from("installment_agreements").update({
+      outstanding_balance: newBalance, ...(newBalance === 0 ? { status: "completed" } : {}),
+    }).eq("id", agreement_id);
+  }
   // Fully paid: nothing is owed, so no lock of any kind should remain on the record (the phone
   // already ignores it at zero balance; this keeps the dashboard honest and the Release flow clean).
   // Separate step so an older database without restriction_reason can never block the payment itself.
