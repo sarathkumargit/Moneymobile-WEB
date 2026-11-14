@@ -10,9 +10,9 @@ ONE FILE FOR EVERY PHONE
 
 NEW / FACTORY-RESET PHONE — on the phone first
   1. Finish the welcome screens. Do NOT add a Google or Samsung account yet.
-  2. Connect to the SAME Wi-Fi as the computer running the MoneyMobile website.
-  3. Settings > About phone > Software information > tap "Build number" 7 times,
-     then Settings > Developer options > turn ON "USB debugging".
+  2. Connect to Wi-Fi (any internet). Settings > Accounts must be EMPTY (skip every account).
+  3. Turn on Developer options (tap "Build number" 7 times; Xiaomi: "OS version"), then in
+     Developer options turn ON "USB debugging" and "Stay awake". Brand steps: website > Install App.
   4. Put the customer's SIM in (this becomes the approved SIM).
   Xiaomi / Redmi / Poco only (one time, before running the setup file):
      a) Developer options > turn ON "USB debugging (Security settings)". Xiaomi asks you to sign in
@@ -23,8 +23,10 @@ NEW / FACTORY-RESET PHONE — on the phone first
      c) Developer options > "Stay awake" ON, and keep the phone unlocked during setup.
 
 THEN
-  Plug the phone in, tap "Allow" on the phone, run the setup file, wait for DONE.
-  The phone appears on the website by its IMEI — assign it to a customer.
+  Plug the phone straight into the computer, choose "File transfer", tap "Allow" on the phone,
+  run the setup file, keep the phone unlocked and wait for DONE. If the phone's IMEI is already on
+  a customer, it links to that customer by itself; otherwise find it by its IMEI and assign it.
+  QR code setup is currently blocked by Google for MoneyMobile - always use this setup file.
 
 AFTER SETUP
   - Overdue payments (app v1.6.0 and newer): the phone locks itself when the due date + grace days
