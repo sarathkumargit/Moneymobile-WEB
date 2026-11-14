@@ -5,7 +5,7 @@ import { getSessionProfile } from "@/lib/auth/auth";
 import { createClient } from "@/lib/supabase/server";
 import { resolveAgreementId } from "@/lib/devices/device-api";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { queueCommand, type EnrRef } from "@/lib/devices/device-commands";
+import { queueCommand, holdOverdueLock, type EnrRef } from "@/lib/devices/device-commands";
 import { offlineUnlockCode, supportsOfflineCode, supportsTimedUnlock, OFFLINE_VALID_MINUTES, OFFLINE_MIN_APP_VERSION, OFFLINE_UNLOCK_GRACE_MINUTES } from "@/lib/devices/offline-unlock";
 export type ActionState = { error?: string; success?: string; code?: string; expiresAt?: number; note?: string };
 
@@ -27,7 +27,12 @@ export async function resolveUnlockRequest(fd: FormData): Promise<void> {
     await supabase.from("device_commands").update({ status: "superseded", result: "replaced by unlock approval" }).eq("enrollment_id", reqRow.enrollment_id).eq("status", "pending");
     await supabase.from("device_commands").insert({ shop_id: s.profile.shop_id, enrollment_id: reqRow.enrollment_id, device_id: reqRow.device_id, command: "UNLOCK_DEVICE", reason: "Customer request approved", status: "pending", issued_by: s.user.id });
     const agreementId = reqRow.agreement_id ?? await resolveAgreementId(supabase as unknown as Parameters<typeof resolveAgreementId>[0], reqRow);
-    if (agreementId) await supabase.from("installment_agreements").update({ restriction: "active" }).eq("id", agreementId);
+    if (agreementId) {
+      await supabase.from("installment_agreements").update({ restriction: "active" }).eq("id", agreementId);
+      // Approving means "let the customer use the phone": hold the overdue lock off for a while,
+      // otherwise an overdue phone locked again on its very next check-in.
+      await holdOverdueLock(supabase, agreementId);
+    }
   }
 
   await supabase.from("device_unlock_requests").update({ status: decision === "approved" ? "approved" : "rejected", resolved_by: s.user.id, resolved_at: new Date().toISOString() }).eq("id", request_id);
@@ -57,10 +62,17 @@ export async function generateUnlockKey(_p: ActionState, fd: FormData): Promise<
 
   const code = offlineUnlockCode(sec.device_token_hash, enr.id);
   const expires_at = new Date(Date.now() + OFFLINE_VALID_MINUTES * 60 * 1000).toISOString();
-  await supabase.from("temporary_unlock_keys").insert({
+  const keyRow = {
     shop_id: s.profile.shop_id, device_id, agreement_id: agreement_id ?? enr.agreement_id ?? null,
     key_hash: createHash("sha256").update(code).digest("hex"), status: "unused", expires_at, created_by: s.user.id,
-  });
+  };
+  const { error: keyErr } = await supabase.from("temporary_unlock_keys").insert(keyRow);
+  if (keyErr) {
+    // The record is how the server later confirms the code was really issued: make sure it is saved
+    // (the phone was already checked to belong to this shop above).
+    const { error: retryErr } = await createAdminClient().from("temporary_unlock_keys").insert(keyRow);
+    if (retryErr) console.warn("[unlock-code] code record not saved:", retryErr.message);
+  }
   // The offline code is a phone-side unlock: the customer types it ON the locked phone, which
   // unlocks itself and then reports OFFLINE_UNLOCK_CODE so the server clears the restriction
   // (see api/devices/security-event). Generating the code must NOT remotely unlock the phone,

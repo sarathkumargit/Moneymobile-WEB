@@ -25,7 +25,7 @@ export async function updateScheduleDueDate(fd: FormData): Promise<void> {
   // Only touch a row in this shop (RLS also enforces this).
   const { data: row } = await supabase
     .from("installment_schedules")
-    .select("id,agreement_id,shop_id")
+    .select("id,agreement_id,shop_id,due_date")
     .eq("id", scheduleId)
     .maybeSingle();
   if (!row || row.shop_id !== s.profile.shop_id) { setFlash("That installment could not be found.", "error"); return; }
@@ -38,7 +38,7 @@ export async function updateScheduleDueDate(fd: FormData): Promise<void> {
   if (upErr) { setFlash(`Could not update the due date: ${upErr.message}`, "error"); return; }
   await supabase.from("audit_logs").insert({
     shop_id: s.profile.shop_id, actor_id: s.user.id, action: "edit_due_date",
-    entity: "installment_schedules", entity_id: scheduleId, details: { due_date: dueDate },
+    entity: "installment_schedules", entity_id: scheduleId, details: { due_date: dueDate, previous_due_date: (row as { due_date?: string | null }).due_date ?? null },
   });
 
   // Keep the lock state consistent with the new date.

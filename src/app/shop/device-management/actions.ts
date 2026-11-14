@@ -14,6 +14,7 @@ import { nudgePhoneByAgreement } from "@/lib/devices/nudge";
 export type ActionState = { error?: string; success?: string; at?: number };
 
 const canOperate = (role: string) => role === "shop_admin" || role === "employee";
+const isLockOrUnlock = (c: string) => c === "LOCK_DEVICE" || c === "UNLOCK_DEVICE";
 
 export async function generateEnrollmentToken(_p: ActionState, fd: FormData): Promise<ActionState> {
   const s = await getSessionProfile();
@@ -67,12 +68,15 @@ export async function deviceCommand(_p: ActionState, fd: FormData): Promise<Acti
   const command = String(fd.get("command") || "").trim();
   const customer_id = String(fd.get("customer_id") || "").trim() || null;
   if (!device_id || !command) return { error: "Missing device or command.", at: Date.now() };
+  // These buttons only ever send Lock / Unlock. Anything else (e.g. a RELEASE_DEVICE typed into the
+  // form) must use its own checked flow — Release requires the phone to be fully paid.
+  if (!isLockOrUnlock(command)) return { error: "Unknown command.", at: Date.now() };
   const supabase = createClient();
   const { data: rel } = await supabase.from("device_enrollments").select("status").eq("device_id", device_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (rel?.status === "released") return { error: "This phone has been released to the customer — the shop no longer controls it.", at: Date.now() };
   const enr = await getOrCreateEnrollment(supabase, s, device_id);
   if (!enr) return { error: "Could not find or create an enrollment for this phone.", at: Date.now() };
-  const result = await queueCommand(supabase, s, enr, command, device_id);
+  const result = await queueCommand(supabase, s, enr, command, device_id, { holdOverdueLock: command === "UNLOCK_DEVICE" });
   if (customer_id) { revalidatePath(`/shop/customers/${customer_id}`); revalidatePath(`/employee/customers/${customer_id}`); }
   revalidatePath("/shop/device-management");
   return result;
@@ -188,12 +192,13 @@ export async function issueCommand(fd: FormData): Promise<void> {
   const enrollment_id = String(fd.get("enrollment_id") || "").trim();
   const command = String(fd.get("command") || "").trim();
   const device_id = String(fd.get("device_id") || "").trim() || null;
-  const agreement_id = String(fd.get("agreement_id") || "").trim() || null;
-  if (!enrollment_id || !command) return;
+  if (!enrollment_id || !command || !isLockOrUnlock(command)) return;
   const supabase = createClient();
   const { data: row } = await supabase.from("device_enrollments").select("id,agreement_id,device_id,customer_id").eq("id", enrollment_id).maybeSingle();
-  const enr: EnrRef = (row as EnrRef) ?? { id: enrollment_id, agreement_id, device_id, customer_id: null };
-  await queueCommand(supabase, s, enr, command, device_id);
+  // Only a phone this staff member can see (RLS). Never fall back to ids typed into the form.
+  if (!row) return;
+  const enr = row as EnrRef;
+  await queueCommand(supabase, s, enr, command, enr.device_id ?? device_id, { holdOverdueLock: command === "UNLOCK_DEVICE" });
   revalidatePath("/shop/device-management");
 }
 

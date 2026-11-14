@@ -25,7 +25,22 @@ export async function getOrCreateEnrollment(supabase: Supa, s: Session, device_i
 // The agreement is resolved exactly like the heartbeat does (resolveAgreementId), so the
 // flag we set is the one the phone reads back. If they differ, the phone locks on the
 // command and then the next heartbeat (locked:false) immediately unlocks it again.
-export async function queueCommand(supabase: Supa, s: Session, enr: EnrRef, command: string, device_id: string | null): Promise<ActionState> {
+// How long a staff Unlock (Unlock button / approved unlock request) keeps an OVERDUE phone open.
+// Without this window the overdue lock came straight back on the next check-in (server) and within
+// 15 seconds on the phone itself (its offline deadline had already passed), so Unlock never held.
+// When it ends and the payment is still not recorded, the phone locks again — online or offline.
+export const MANUAL_UNLOCK_HOURS = 24;
+
+/** Opens the overdue-lock hold window (unlock_grace_until) on an agreement. Never shortens a window
+ *  that is already open. Best-effort: without migration 0018 the column is missing and this only logs. */
+export async function holdOverdueLock(supabase: Supa, agreementId: string, hours = MANUAL_UNLOCK_HOURS): Promise<void> {
+  const iso = new Date(Date.now() + hours * 3600_000).toISOString();
+  const { error } = await supabase.from("installment_agreements").update({ unlock_grace_until: iso })
+    .eq("id", agreementId).or(`unlock_grace_until.is.null,unlock_grace_until.lt.${iso}`);
+  if (error) console.warn("[unlock] hold window not saved (run migration 0018_unlock_grace.sql):", error.message);
+}
+
+export async function queueCommand(supabase: Supa, s: Session, enr: EnrRef, command: string, device_id: string | null, opts: { holdOverdueLock?: boolean } = {}): Promise<ActionState> {
   // Only the newest instruction matters: retire anything still waiting so repeated clicks
   // don't build a backlog the phone has to work through one check-in at a time.
   await supabase.from("device_commands").update({ status: "superseded", result: "replaced by a newer command" }).eq("enrollment_id", enr.id).eq("status", "pending");
@@ -40,6 +55,8 @@ export async function queueCommand(supabase: Supa, s: Session, enr: EnrRef, comm
     const { error: rErr } = await supabase.from("installment_agreements").update({ restriction, restriction_reason: restrictionReason }).eq("id", agreementId);
     if (rErr) return { error: `Command queued, but the agreement could not be updated: ${rErr.message}`, at: Date.now() };
     if (agreementId !== enr.agreement_id) await supabase.from("device_enrollments").update({ agreement_id: agreementId }).eq("id", enr.id);
+    // Staff Unlock on an overdue phone: keep it open for MANUAL_UNLOCK_HOURS instead of re-locking at once.
+    if (command === "UNLOCK_DEVICE" && opts.holdOverdueLock) await holdOverdueLock(supabase, agreementId);
   }
   await supabase.from("audit_logs").insert({ shop_id: s.profile.shop_id, actor_id: s.user.id, action: "device_command", entity: "device_commands", entity_id: device_id ?? enr.id, details: { command } });
 
