@@ -13,7 +13,7 @@
 import dynamic from "next/dynamic";
 import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
-import { AlertCircle, ArrowDown, Eye, EyeOff, Smartphone } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Smartphone } from "lucide-react";
 import { login } from "./actions";
 
 const LampScene = dynamic(() => import("./lamp-scene"), { ssr: false });
@@ -183,42 +183,11 @@ export function LampLogin({ error }: { error: string | null }) {
         <Logo dim />
       </div>
 
-      {/* Label that follows the cord's handle */}
-      {lamp && (
-        <div
-          ref={hintRef}
-          aria-hidden
-          className="pointer-events-none absolute left-0 top-0 hidden whitespace-nowrap opacity-0 transition-opacity duration-300 lg:block"
-        >
-          {on ? (
-            <span className="text-[13px] text-[#9a917f]">Pull again to turn the light off</span>
-          ) : (
-            <span className="flex items-center gap-2 text-[17px] font-medium text-[#d2d6dd]">
-              <ArrowDown className="h-[18px] w-[18px] text-[#d9bd76]" aria-hidden />
-              Pull the cord to sign in
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Accessible way in (keyboard, screen readers, or if dragging is hard) */}
+      {/* No visible instructions: keyboard and screen-reader users still get a (hidden) way in. Enter also works. */}
       {!lit && (
-        <div className="absolute inset-x-0 bottom-8 flex flex-col items-center gap-3 lg:bottom-10">
-          {lamp && (
-            <span aria-hidden className="flex items-center gap-2 text-[17px] font-medium text-[#d2d6dd] lg:hidden">
-              <ArrowDown className="h-[18px] w-[18px] text-[#d9bd76]" />
-              Pull the cord to sign in
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={toggle}
-            className="h-11 rounded-full border border-[#3a3f49] px-5 text-sm text-[#c9cdd4] transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#0071e3]/40"
-          >
-            Turn on the light
-          </button>
-          <span className="hidden text-xs text-[#8a93a1] lg:block">or press Enter</span>
-        </div>
+        <button type="button" onClick={toggle} className="sr-only">
+          Turn on the light to sign in
+        </button>
       )}
 
       {/* Sign-in card */}
